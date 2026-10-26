@@ -25,7 +25,6 @@ const SIGNAL_TERMS: Record<string, string> = {
 
 const SIGNAL_TYPES = ["expansion", "infra_hiring", "refresh", "compute", "procurement", "other"] as const;
 
-/** Structured extraction of the article's subject company (entity matching, spec §6). */
 const SUBJECT_SUMMARY = {
   query:
     "Which single company is this page primarily about that is expanding, hiring, refreshing IT, adding compute or buying infrastructure? Leave fields empty if unclear or if several companies are equally involved.",
@@ -48,7 +47,7 @@ type Subject = {
   eventSummary: string | null;
 };
 
-/** Parse the provider's JSON summary; anything malformed or empty becomes "unknown". */
+
 export function parseSubject(summary: unknown): Subject | null {
   if (typeof summary !== "string" || !summary.trim()) return null;
   try {
