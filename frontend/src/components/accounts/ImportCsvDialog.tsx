@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   downloadFile,
   getImport,
@@ -43,6 +43,8 @@ export function ImportCsvDialog({ workspaceId, onDone }: { workspaceId: string; 
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   // After a refresh: show the last import report, or keep following one still in progress
   useEffect(() => {
@@ -75,6 +77,35 @@ export function ImportCsvDialog({ workspaceId, onDone }: { workspaceId: string; 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per workspace
   }, [workspaceId]);
 
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setResult(null);
+    if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") {
+      setError("Please choose a .csv file.");
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setError("That file is larger than 2 MB. Split it into smaller files.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const text = await readFileAsText(file);
+      const p = await previewImport(workspaceId, text);
+      setCsvText(text);
+      setFileName(file.name);
+      setPreview(p);
+      setMapping(
+        Object.fromEntries(Object.entries(p.suggestedMapping).filter(([, v]) => v)) as Record<string, string>,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read file");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function reset() {
     setCsvText(null);
     setPreview(null);
@@ -91,41 +122,38 @@ export function ImportCsvDialog({ workspaceId, onDone }: { workspaceId: string; 
       </p>
 
       {!preview ? (
-        <label className="mt-3 block text-xs font-semibold text-[var(--muted)]">
-          Choose file
+        <div
+          className={`mt-3 flex flex-col items-center gap-2 rounded-[7px] border border-dashed p-6 text-center ${
+            dragOver ? "border-[var(--red)] bg-[var(--chip-bg)]" : "border-[var(--line)]"
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!busy) setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (!busy) void handleFile(e.dataTransfer.files?.[0]);
+          }}
+        >
           <input
+            ref={fileInput}
             type="file"
             accept=".csv,text/csv"
-            className="mt-1.5 block w-full text-sm"
+            className="hidden"
             disabled={busy}
-            onChange={async (e) => {
+            onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
-              if (!file) return;
-              setError(null);
-              setResult(null);
-              if (file.size > MAX_BYTES) {
-                setError("That file is larger than 2 MB. Split it into smaller files.");
-                return;
-              }
-              setBusy(true);
-              try {
-                const text = await readFileAsText(file);
-                const p = await previewImport(workspaceId, text);
-                setCsvText(text);
-                setFileName(file.name);
-                setPreview(p);
-                setMapping(
-                  Object.fromEntries(Object.entries(p.suggestedMapping).filter(([, v]) => v)) as Record<string, string>,
-                );
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Could not read file");
-              } finally {
-                setBusy(false);
-              }
+              void handleFile(file);
             }}
           />
-        </label>
+          <Button variant="primary" disabled={busy} onClick={() => fileInput.current?.click()}>
+            {busy ? "Reading file…" : "Choose CSV file"}
+          </Button>
+          <p className="text-xs text-[var(--muted)]">or drag and drop it here</p>
+        </div>
       ) : (
         <div className="mt-3 space-y-3">
           <p className="text-sm">
