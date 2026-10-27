@@ -39,7 +39,7 @@ export const acceptanceDecisions = pgTable(
   (t) => [index("acceptance_decisions_account_idx").on(t.accountId)],
 );
 
-export const taskTypes = ["research", "call", "email", "follow_up"] as const;
+export const taskTypes = ["research", "review", "call", "email", "follow_up"] as const;
 export type TaskType = (typeof taskTypes)[number];
 export const taskStatuses = ["open", "in_progress", "completed", "cancelled"] as const;
 export type TaskStatus = (typeof taskStatuses)[number];

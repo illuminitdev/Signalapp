@@ -44,7 +44,7 @@ export function FormError({ message }: { message: string | null }) {
 export function FormNotice({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="status" className="text-sm text-[var(--badge-green-fg)]">
+    <p role="status" className="mt-3 rounded-[7px] bg-[var(--badge-green-bg)] p-3 text-sm font-medium text-[var(--badge-green-fg)]">
       {message}
     </p>
   );

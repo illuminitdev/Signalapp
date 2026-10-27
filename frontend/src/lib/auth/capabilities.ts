@@ -33,6 +33,9 @@ export const ROLE_LABELS: Record<string, string> = {
   analyst: "Analyst",
 };
 
+/** Display order for role lists and counts. */
+export const ROLE_ORDER = ["tenant_admin", "researcher", "sales_reviewer", "sdr", "partner", "analyst"];
+
 export const ROLE_DESCRIPTIONS: Record<string, string> = {
   tenant_admin: "Members, settings, suppression list, usage limits — and every other action.",
   researcher: "Discover and import accounts, run research, review evidence, qualify and submit for review, drafts.",

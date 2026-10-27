@@ -3,7 +3,7 @@ import { api } from "./client";
 export type Task = {
   id: string;
   accountId: string;
-  type: "research" | "call" | "email" | "follow_up";
+  type: "research" | "review" | "call" | "email" | "follow_up";
   status: "open" | "in_progress" | "completed" | "cancelled";
   priority: "low" | "normal" | "high" | "urgent";
   instruction: string | null;
@@ -12,6 +12,16 @@ export type Task = {
   ownerUserId: string;
   dueAt: string | null;
   timezone: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+export const TASK_TYPE_LABELS: Record<Task["type"], string> = {
+  research: "Research",
+  review: "Sales review",
+  call: "Call",
+  email: "Email",
+  follow_up: "Follow-up",
 };
 
 export type TaskFilters = {
@@ -40,6 +50,14 @@ export function createTask(body: {
   confirmFollowUp?: boolean;
 }) {
   return api<{ task: Task }>("/v1/tasks", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Saves the note, submits the account for review, tasks the reviewer and completes this research task */
+export function sendForReview(taskId: string, body: { workspaceId: string; note: string; reviewerUserId: string }) {
+  return api<{ researchTask: Task; reviewTask: Task }>(`/v1/tasks/${taskId}/send-for-review`, {
     method: "POST",
     body: JSON.stringify(body),
   });

@@ -15,11 +15,13 @@ import { membershipRoutes } from "./memberships.js";
 import { suppressionRoutes } from "./suppressions.js";
 import { evidenceRoutes } from "./evidence.js";
 import { platformRoutes } from "./platform.js";
+import { companyWorkspaceRoutes } from "./companyWorkspaces.js";
 
 export async function v1Routes(app: FastifyInstance) {
   await authRoutes(app);
   await workspaceRoutes(app);
   await membershipRoutes(app);
+  await companyWorkspaceRoutes(app);
   await suppressionRoutes(app);
   await evidenceRoutes(app);
   await settingsRoutes(app);

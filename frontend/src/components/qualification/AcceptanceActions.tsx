@@ -22,7 +22,7 @@ const REASONS = [
 ];
 
 const SUCCESS: Record<string, string> = {
-  ready_for_review: "Submitted for review. A sales reviewer will pick it up from Sales acceptance.",
+  ready_for_review: "Submitted for review. A tenant admin or sales reviewer will see it under Accounts → Sales acceptance.",
   accepted: "Accepted and assigned to the owner.",
   needs_research: "Returned to research.",
   rejected: "Rejected.",
@@ -47,7 +47,7 @@ export function AcceptanceActions({
   decisions: Decision[];
   onDone: () => void;
 }) {
-  const { can, user } = useWorkspace();
+  const { can, role, user } = useWorkspace();
   const [people, setPeople] = useState<Array<{ userId: string; name: string; role: string }>>([]);
   const [ownerUserId, setOwnerUserId] = useState(currentOwnerId ?? "");
   const [nextAction, setNextAction] = useState("");
@@ -88,7 +88,9 @@ export function AcceptanceActions({
     }
   }
 
-  const canSubmit = can("submit_review") && (state === "draft" || state === "needs_research");
+  const awaitingSubmit = state === "draft" || state === "needs_research";
+  // Admins hand qualification to researchers; submitting stays the researcher's step
+  const canSubmit = can("submit_review") && role !== "tenant_admin" && awaitingSubmit;
   const canDecide = isReviewer && state === "ready_for_review";
   const canReopen = isReviewer && (state === "accepted" || state === "rejected");
 
@@ -108,7 +110,7 @@ export function AcceptanceActions({
           <Button variant="primary" disabled={busy} onClick={() => transition("ready_for_review")}>
             Submit for review
           </Button>
-          <p className="mt-1 text-xs text-[var(--muted)]">Needs a qualification rationale and at least one fact.</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Needs a saved rationale (a short note for the reviewer). Easiest: use “Send to sales reviewer” on your task under Outreach → Tasks.</p>
         </div>
       ) : null}
 
@@ -193,7 +195,9 @@ export function AcceptanceActions({
         <p className="mt-3 text-sm text-[var(--muted)]">
           {state === "ready_for_review"
             ? "Waiting for a sales reviewer."
-            : "No acceptance actions are available for your role at this stage."}
+            : awaitingSubmit && role === "tenant_admin"
+              ? "Waiting for a researcher to qualify and submit this account. Assign them a research task below."
+              : "No acceptance actions are available for your role at this stage."}
         </p>
       ) : null}
 

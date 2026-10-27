@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, lt, notInArray, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, notInArray, type SQL } from "drizzle-orm";
 import { getDb } from "../db/client.js";
 import { activities, tasks, type TaskStatus, type TaskType } from "../db/schema/index.js";
 import { conflict, notFound, validationError } from "../utils/errors.js";
@@ -46,8 +46,8 @@ export async function createTask(input: {
   if (!(await isActiveMember(input.workspaceId, input.ownerUserId))) {
     throw validationError("Task owner must be an active workspace member");
   }
-  // Research tasks may be created before acceptance; contact tasks honor suppression (gate 8)
-  if (input.type !== "research" && (await isAccountSuppressed(input.workspaceId, input.accountId))) {
+  // Research and review tasks may be created before acceptance; contact tasks honor suppression (gate 8)
+  if (input.type !== "research" && input.type !== "review" && (await isAccountSuppressed(input.workspaceId, input.accountId))) {
     throw validationError("Cannot create a contact task for a suppressed account");
   }
   const timezone = input.timezone ?? "UTC";
@@ -180,7 +180,8 @@ export async function listTasks(
   workspaceId: string,
   filters: {
     ownerUserId?: string;
-    status?: TaskStatus;
+    /** "active" = open or in progress, so a started task stays in the default queue */
+    status?: TaskStatus | "active";
     priority?: TaskPriority;
     accountId?: string;
     due?: "overdue" | "today" | "week";
@@ -189,7 +190,8 @@ export async function listTasks(
   const db = getDb();
   const where: SQL[] = [eq(tasks.workspaceId, workspaceId), eq(tasks.tenantId, tenantId)];
   if (filters.ownerUserId) where.push(eq(tasks.ownerUserId, filters.ownerUserId));
-  if (filters.status) where.push(eq(tasks.status, filters.status));
+  if (filters.status === "active") where.push(inArray(tasks.status, ["open", "in_progress"]));
+  else if (filters.status) where.push(eq(tasks.status, filters.status));
   if (filters.priority) where.push(eq(tasks.priority, filters.priority));
   if (filters.accountId) where.push(eq(tasks.accountId, filters.accountId));
   if (filters.due) {

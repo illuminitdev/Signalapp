@@ -32,13 +32,16 @@ Each role maps to a list of capabilities such as `view_accounts`, `research`, `a
         └─────── return (reviewer) ───┘                    │         │
                                                            └─reopen──┴──► Ready for review
 ```
-- **Submit** needs a rationale and at least one fact.
+- **Submit** needs a saved rationale (the note for the reviewer). Qualification facts are optional.
+- **Send to sales reviewer** (on a research task, `POST /v1/tasks/:taskId/send-for-review`) does the researcher's hand-off in one step: saves the note as the rationale, submits, creates a *Sales review* task for the chosen reviewer and completes the research task. It needs at least one reviewed evidence item.
 - **Accept** needs ≥1 *reviewed* evidence item, an active-member owner, a next action, no active suppression, and any workspace acceptance gates.
 - **Return / reject** need a reason category. **Reopen** needs a reason.
 - A material qualification change on an accepted account returns it to *Ready for review* automatically.
 - Any other transition is refused (409).
 
 ### Tasks (`services/tasks.ts`)
+Only the tenant admin sees and updates everyone's tasks (Outreach → Tasks, "All tasks"). Every other role sees and updates only tasks it owns ("My tasks"); this is enforced in `routes/v1/tasks.ts`.
+
 `Open ⇄ In progress → Completed | Cancelled` (terminal). Completion needs an outcome; cancellation needs a reason. Follow-up tasks need explicit confirmation.
 
 ### Partner handoff (`services/handoffs.ts`)
@@ -53,4 +56,4 @@ Configure offer & territory ─► Discover / import ─► Research (evidence)
    ─► Review evidence ─► Qualify ─► Submit ─► Accept ─► SDR tasks & drafts
    ─► Record outcome ─► (optional) Partner handoff ─► Reports
 ```
-Research tasks may be created before acceptance. Contact tasks (call/email/follow-up) are blocked for suppressed accounts.
+Research and sales review tasks may be created before acceptance. Contact tasks (call/email/follow-up) are blocked for suppressed accounts. A researcher can hand a submitted account to a named reviewer with a *Sales review* task.

@@ -12,15 +12,25 @@ import { usePersistentState } from "@/hooks/usePersistentState";
 import { listTasks, patchTask, type Task, type TaskFilters } from "@/lib/api/tasks";
 import { listAccounts, listPeople, type Account } from "@/lib/api/accounts";
 import { Button } from "@/components/ui/Button";
-import { Field, inputClass } from "@/components/ui/Field";
+import { Field, FormNotice, inputClass } from "@/components/ui/Field";
+
+const QUEUE_INTRO: Record<string, string> = {
+  researcher: "Research tasks assigned to you: review the evidence, qualify and submit each account for review.",
+  sales_reviewer: "Sales review tasks assigned to you: accept, return or reject submitted accounts.",
+  sdr: "Call, email and follow-up tasks on your accounts.",
+};
 
 function SdrQueue({ workspaceId }: { workspaceId: string }) {
   const { can, role, user } = useWorkspace();
+  // The server returns only the member's own tasks unless they are the tenant admin
+  const isAdmin = role === "tenant_admin";
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [people, setPeople] = useState<Array<{ userId: string; name: string }>>([]);
-  const [filters, setFilters] = usePersistentState<TaskFilters>(`${workspaceId}:tasks:filters`, { status: "open" });
+  // v2: the default moved from "open" to "active", so saved filters don't hide started tasks
+  const [filters, setFilters] = usePersistentState<TaskFilters>(`${workspaceId}:tasks:filters:v2`, { status: "active" });
   const [showForm, setShowForm] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -44,18 +54,29 @@ function SdrQueue({ workspaceId }: { workspaceId: string }) {
   }, [workspaceId, user]);
 
   const accountNames = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
+  const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
   const peopleNames = useMemo(() => new Map(people.map((p) => [p.userId, p.name])), [people]);
   const set = (k: keyof TaskFilters, v: string) => setFilters((f) => ({ ...f, [k]: v || undefined }));
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="SDR follow-through"
-        title={role === "sdr" ? "My queue" : "SDR queue"}
-        description="Research, call, email and follow-up tasks owned by named people. Nothing here sends messages — record what you did and the outcome."
+        eyebrow={isAdmin ? "Team overview" : "Your work"}
+        title={isAdmin ? "All tasks" : "My tasks"}
+        description={
+          isAdmin
+            ? "Every task in the workspace — who it is assigned to, who assigned it and where it stands. Filter by owner to see one person's queue."
+            : (QUEUE_INTRO[role ?? ""] ?? "Tasks assigned to you.") + " Nothing here sends messages — record what you did and the outcome."
+        }
         actions={
           can("tasks") ? (
-            <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setNotice(null);
+                setShowForm((s) => !s);
+              }}
+            >
               {showForm ? "Close" : "New task"}
             </Button>
           ) : null
@@ -65,15 +86,17 @@ function SdrQueue({ workspaceId }: { workspaceId: string }) {
         <TaskForm
           workspaceId={workspaceId}
           accounts={accounts}
-          onCreated={() => {
+          onCreated={(message) => {
             setShowForm(false);
+            setNotice(message);
             void refresh();
           }}
         />
       ) : null}
+      <FormNotice message={notice} />
 
       <div className="grid gap-3 sm:grid-cols-4" role="group" aria-label="Task filters">
-        {role !== "sdr" ? (
+        {isAdmin ? (
           <Field label="Owner">
             <select className={inputClass} value={filters.ownerUserId ?? ""} onChange={(e) => set("ownerUserId", e.target.value)}>
               <option value="">Everyone</option>
@@ -88,6 +111,7 @@ function SdrQueue({ workspaceId }: { workspaceId: string }) {
         <Field label="Status">
           <select className={inputClass} value={filters.status ?? ""} onChange={(e) => set("status", e.target.value)}>
             <option value="">Any</option>
+            <option value="active">Open or in progress</option>
             <option value="open">Open</option>
             <option value="in_progress">In progress</option>
             <option value="completed">Completed</option>
@@ -120,11 +144,29 @@ function SdrQueue({ workspaceId }: { workspaceId: string }) {
         <TaskQueue
           tasks={tasks}
           accountNames={accountNames}
+          accounts={accountsById}
           peopleNames={peopleNames}
           canEdit={can("tasks")}
           onUpdate={async (taskId, body) => {
             await patchTask(taskId, { workspaceId, ...body });
-            await refresh();
+            // A finished task leaves the active list, so follow it to where it now lives
+            if (body.status === "completed" || body.status === "cancelled") {
+              setNotice(
+                body.status === "completed"
+                  ? "Task completed. Showing your completed tasks — set Status back to “Open or in progress” for the rest."
+                  : "Task cancelled. Showing your cancelled tasks — set Status back to “Open or in progress” for the rest.",
+              );
+              setFilters((f) => ({ ...f, status: body.status as string }));
+            } else {
+              setNotice(null);
+              await refresh();
+            }
+          }}
+          workspaceId={workspaceId}
+          onAccountChanged={() => void refresh()}
+          onSent={(message) => {
+            setNotice(`${message} Showing your completed tasks.`);
+            setFilters((f) => ({ ...f, status: "completed" }));
           }}
         />
       )}

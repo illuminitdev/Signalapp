@@ -12,6 +12,7 @@ import {
   LogOut,
   Send,
   Settings,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { logout } from "../../lib/auth/session";
@@ -79,7 +80,7 @@ const SECTIONS: Section[] = [
     Icon: Send,
     prefix: "/outreach",
     items: [
-      { href: "/outreach", label: "SDR queue", exact: true, visible: (can) => can("view_tasks") },
+      { href: "/outreach", label: "Tasks", exact: true, visible: (can) => can("view_tasks") },
       { href: "/outreach/drafts", label: "Drafts", visible: (can) => can("view_drafts") },
     ],
   },
@@ -93,13 +94,26 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    key: "members",
+    label: "Members",
+    Icon: Users,
+    prefix: "/members",
+    items: [{ href: "/members", label: "Members", visible: (can) => can("manage_membership") }],
+  },
+  {
+    key: "workspaces",
+    label: "Workspaces",
+    Icon: Layers,
+    prefix: "/workspaces",
+    items: [{ href: "/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
+  },
+  {
     key: "settings",
     label: "Settings",
     Icon: Settings,
     prefix: "/settings",
     items: [
       { href: "/settings/offer", label: "Offer & targeting", visible: (can) => can("manage_settings") },
-      { href: "/settings/members", label: "Members", visible: (can) => can("manage_membership") },
       { href: "/settings/suppressions", label: "Suppressions", visible: (can) => can("manage_suppressions") },
       {
         href: "/settings/connections",

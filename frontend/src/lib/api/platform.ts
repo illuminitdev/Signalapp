@@ -48,6 +48,24 @@ export async function listPlatformWorkspaces() {
   return api<{ workspaces: PlatformWorkspace[] }>("/v1/platform/workspaces");
 }
 
+export type PlatformUsersCompany = {
+  id: string;
+  name: string;
+  createdAt: string;
+  /** Distinct active users across the company's workspaces */
+  users: number;
+  usersByRole: Record<string, number>;
+  admins: Array<{ userId: string; name: string; email: string }>;
+  workspaces: Array<{ id: string; name: string; users: number }>;
+};
+
+export async function getPlatformUsers() {
+  return api<{
+    totals: { users: number; admins: number; companies: number; workspaces: number };
+    companies: PlatformUsersCompany[];
+  }>("/v1/platform/users");
+}
+
 export async function createWorkspace(body: {
   tenantId: string;
   name: string;

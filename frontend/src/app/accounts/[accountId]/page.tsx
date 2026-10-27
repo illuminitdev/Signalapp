@@ -12,14 +12,17 @@ import { AcceptanceActions } from "@/components/qualification/AcceptanceActions"
 import { ResearchRunStatus } from "@/components/research/ResearchRunStatus";
 import { HandoffPanel } from "@/components/handoffs/HandoffPanel";
 import { TaskForm } from "@/components/tasks/TaskForm";
+import { TaskQueue } from "@/components/tasks/TaskQueue";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { getBrief, type Brief } from "@/lib/api/accounts";
+import { getBrief, listPeople, type Brief } from "@/lib/api/accounts";
+import { listTasks, patchTask, type Task } from "@/lib/api/tasks";
 import { listResearchRuns, startResearchRun } from "@/lib/api/research";
 import { createDraft } from "@/lib/api/drafts";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { FormNotice } from "@/components/ui/Field";
 
 function AccountBrief({ workspaceId, accountId }: { workspaceId: string; accountId: string }) {
   const { can } = useWorkspace();
@@ -29,6 +32,27 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
   const [runId, setRunId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskNotice, setTaskNotice] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [peopleNames, setPeopleNames] = useState<Map<string, string>>(new Map());
+
+  const refreshTasks = useCallback(async () => {
+    if (!can("view_tasks")) return;
+    try {
+      setTasks((await listTasks(workspaceId, { accountId })).tasks);
+    } catch {
+      setTasks([]);
+    }
+  }, [workspaceId, accountId, can]);
+
+  useEffect(() => {
+    void refreshTasks();
+  }, [refreshTasks]);
+  useEffect(() => {
+    void listPeople(workspaceId)
+      .then((r) => setPeopleNames(new Map(r.people.map((p) => [p.userId, p.name]))))
+      .catch(() => setPeopleNames(new Map()));
+  }, [workspaceId]);
 
   const refresh = useCallback(async () => {
     try {
@@ -149,13 +173,54 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
 
       {can("tasks") ? (
         <div>
-          <Button onClick={() => setShowTaskForm((s) => !s)}>{showTaskForm ? "Hide task form" : "Add a task for this account"}</Button>
+          <Button
+            onClick={() => {
+              setTaskNotice(null);
+              setShowTaskForm((s) => !s);
+            }}
+          >
+            {showTaskForm ? "Hide task form" : "Add a task for this account"}
+          </Button>
           {showTaskForm ? (
             <div className="mt-3">
-              <TaskForm workspaceId={workspaceId} accountId={accountId} onCreated={() => setShowTaskForm(false)} />
+              <TaskForm
+                workspaceId={workspaceId}
+                accountId={accountId}
+                onCreated={(message) => {
+                  setShowTaskForm(false);
+                  setTaskNotice(message);
+                  void refreshTasks();
+                }}
+              />
             </div>
           ) : null}
+          <FormNotice message={taskNotice} />
         </div>
+      ) : null}
+
+      {tasks.length ? (
+        <section aria-labelledby="tasks-heading">
+          <h2 id="tasks-heading" className="mb-3 text-[16px]">
+            Tasks on this account
+          </h2>
+          <TaskQueue
+            tasks={tasks}
+            accountNames={new Map([[accountId, account.name]])}
+            accounts={new Map([[accountId, account]])}
+            peopleNames={peopleNames}
+            canEdit={can("tasks")}
+            onUpdate={async (taskId, body) => {
+              await patchTask(taskId, { workspaceId, ...body });
+              await refreshTasks();
+            }}
+            workspaceId={workspaceId}
+            onAccountChanged={() => {
+              void refresh();
+              void refreshTasks();
+            }}
+            onSent={(message) => setTaskNotice(message)}
+          />
+        </section>
       ) : null}
 
       {can("handoff") ? (

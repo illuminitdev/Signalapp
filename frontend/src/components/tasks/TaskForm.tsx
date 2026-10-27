@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createTask, type Task } from "../../lib/api/tasks";
+import { createTask, TASK_TYPE_LABELS, type Task } from "../../lib/api/tasks";
 import { listPeople, type Account } from "../../lib/api/accounts";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { ROLE_LABELS } from "../../lib/auth/capabilities";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Field, FormError, inputClass } from "../ui/Field";
@@ -14,23 +15,28 @@ export function TaskForm({
   workspaceId,
   accountId,
   accounts,
+  initialType = "research",
+  initialInstruction = "",
   onCreated,
 }: {
   workspaceId: string;
   /** Fixed account (account page) — or choose from `accounts` */
   accountId?: string;
   accounts?: Account[];
-  onCreated: () => void;
+  initialType?: Task["type"];
+  initialInstruction?: string;
+  /** Receives a confirmation naming the owner, since the form usually closes */
+  onCreated: (message: string) => void;
 }) {
   const { user, role } = useWorkspace();
-  const [people, setPeople] = useState<Array<{ userId: string; name: string }>>([]);
+  const [people, setPeople] = useState<Array<{ userId: string; name: string; role?: string }>>([]);
   const [chosenAccount, setChosenAccount] = useState(accountId ?? "");
-  const [type, setType] = useState<Task["type"]>("research");
+  const [type, setType] = useState<Task["type"]>(initialType);
   const [ownerUserId, setOwnerUserId] = useState(user?.id ?? "");
   const [due, setDue] = useState("");
   const [timezone, setTimezone] = useState(BROWSER_TZ);
   const [priority, setPriority] = useState<Task["priority"]>("normal");
-  const [instruction, setInstruction] = useState("");
+  const [instruction, setInstruction] = useState(initialInstruction);
   const [confirmFollowUp, setConfirmFollowUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,6 +49,12 @@ export function TaskForm({
   useEffect(() => {
     if (!ownerUserId && user) setOwnerUserId(user.id);
   }, [user, ownerUserId]);
+  // A sales review goes to a reviewer, so default the owner to the first one
+  useEffect(() => {
+    if (type !== "review") return;
+    const reviewer = people.find((p) => p.role === "sales_reviewer");
+    if (reviewer) setOwnerUserId(reviewer.userId);
+  }, [type, people]);
 
   const target = accountId ?? chosenAccount;
 
@@ -70,7 +82,8 @@ export function TaskForm({
             setInstruction("");
             setDue("");
             setConfirmFollowUp(false);
-            onCreated();
+            const ownerName = ownerUserId === user?.id ? "you" : (people.find((p) => p.userId === ownerUserId)?.name ?? "the owner");
+            onCreated(`${TASK_TYPE_LABELS[type]} task assigned to ${ownerName}. It is now in their queue under Outreach.`);
           } catch (err) {
             setError(err instanceof Error ? err.message : "Failed");
           } finally {
@@ -95,6 +108,7 @@ export function TaskForm({
           <Field label="Type">
             <select className={inputClass} value={type} onChange={(e) => setType(e.target.value as Task["type"])}>
               <option value="research">Research</option>
+              <option value="review">Sales review</option>
               <option value="call">Call</option>
               <option value="email">Email</option>
               <option value="follow_up">Follow-up</option>
@@ -110,6 +124,7 @@ export function TaskForm({
               {people.map((p) => (
                 <option key={p.userId} value={p.userId}>
                   {p.name}
+                  {p.role ? ` (${ROLE_LABELS[p.role] ?? p.role})` : ""}
                 </option>
               ))}
             </select>

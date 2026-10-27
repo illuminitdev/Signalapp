@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, Layers, LayoutDashboard, LogOut, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Building2, Layers, LayoutDashboard, LogOut, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { logout, me, type User } from "../../lib/auth/session";
 import { ApiError } from "../../lib/api/client";
 import { LoadingState } from "../common/LoadingState";
@@ -13,6 +13,7 @@ const NAV: Array<{ href: string; label: string; Icon: LucideIcon; exact?: boolea
   { href: "/platform", label: "Overview", Icon: LayoutDashboard, exact: true },
   { href: "/platform/companies", label: "Companies", Icon: Building2 },
   { href: "/platform/workspaces", label: "Workspaces", Icon: Layers },
+  { href: "/platform/users", label: "Users", Icon: Users },
   { href: "/platform/settings", label: "Settings", Icon: Settings },
 ];
 

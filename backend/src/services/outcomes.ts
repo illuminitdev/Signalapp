@@ -67,7 +67,7 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
     ? await db.select({ id: tasks.id, type: tasks.type }).from(tasks).where(inArray(tasks.id, taskIds))
     : [];
   const typeById = new Map(taskTypes.map((t) => [t.id, t.type]));
-  const activityByType: Record<string, number> = { research: 0, call: 0, email: 0, follow_up: 0 };
+  const activityByType: Record<string, number> = { research: 0, review: 0, call: 0, email: 0, follow_up: 0 };
   for (const a of completedActs) {
     const type = (a.taskId && typeById.get(a.taskId)) || "unknown";
     activityByType[type] = (activityByType[type] ?? 0) + 1;

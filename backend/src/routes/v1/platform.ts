@@ -1,15 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import { count, countDistinct, eq, isNull } from "drizzle-orm";
+import { and, count, countDistinct, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../../db/client.js";
-import { accounts, memberships, tenants, workspaces } from "../../db/schema/index.js";
+import { accounts, memberships, tenants, users, workspaces } from "../../db/schema/index.js";
 import { requirePlatformAdmin } from "../../middleware/authenticate.js";
 import { provisionTenant, provisionWorkspace } from "../../services/tenants.js";
 import { writeAudit } from "../../services/audit.js";
 
 /**
  * App-owner console. Returns counts only: a platform admin never reads a tenant's
- * accounts, evidence, briefs or member details (spec §4 tenant boundary).
+ * accounts, evidence, briefs or member details (spec §4 tenant boundary). The one
+ * exception is each company's tenant admin contact, on /v1/platform/users.
  */
 export async function platformRoutes(app: FastifyInstance) {
   app.get("/v1/platform/overview", { preHandler: requirePlatformAdmin }, async () => {
@@ -118,6 +119,66 @@ export async function platformRoutes(app: FastifyInstance) {
     const accs = new Map(accountCounts.map((r) => [r.workspaceId, Number(r.n)]));
     return {
       workspaces: rows.map((w) => ({ ...w, members: members.get(w.id) ?? 0, accounts: accs.get(w.id) ?? 0 })),
+    };
+  });
+
+  /**
+   * Users per company: head counts by role and workspace, plus the tenant admins'
+   * names and emails (the people the platform admin onboards). Other members stay counts.
+   */
+  app.get("/v1/platform/users", { preHandler: requirePlatformAdmin }, async () => {
+    const db = getDb();
+    const [tenantRows, userCounts, roleCounts, wsRows, wsUserCounts, adminRows] = await Promise.all([
+      db.select({ id: tenants.id, name: tenants.name, createdAt: tenants.createdAt }).from(tenants).orderBy(tenants.name),
+      db
+        .select({ tenantId: memberships.tenantId, n: countDistinct(memberships.userId) })
+        .from(memberships)
+        .where(isNull(memberships.revokedAt))
+        .groupBy(memberships.tenantId),
+      db
+        .select({ tenantId: memberships.tenantId, role: memberships.role, n: countDistinct(memberships.userId) })
+        .from(memberships)
+        .where(isNull(memberships.revokedAt))
+        .groupBy(memberships.tenantId, memberships.role),
+      db
+        .select({ id: workspaces.id, name: workspaces.name, tenantId: workspaces.tenantId })
+        .from(workspaces)
+        .orderBy(workspaces.createdAt),
+      db
+        .select({ workspaceId: memberships.workspaceId, n: count() })
+        .from(memberships)
+        .where(isNull(memberships.revokedAt))
+        .groupBy(memberships.workspaceId),
+      db
+        .selectDistinct({ tenantId: memberships.tenantId, userId: users.id, name: users.name, email: users.email })
+        .from(memberships)
+        .innerJoin(users, eq(memberships.userId, users.id))
+        .where(and(eq(memberships.role, "tenant_admin"), isNull(memberships.revokedAt))),
+    ]);
+    const usersByTenant = new Map(userCounts.map((r) => [r.tenantId, Number(r.n)]));
+    const usersByWs = new Map(wsUserCounts.map((r) => [r.workspaceId, Number(r.n)]));
+
+    const companies = tenantRows.map((t) => {
+      const usersByRole: Record<string, number> = {};
+      for (const r of roleCounts) if (r.tenantId === t.id) usersByRole[r.role] = Number(r.n);
+      const ws = wsRows.filter((w) => w.tenantId === t.id);
+      return {
+        ...t,
+        users: usersByTenant.get(t.id) ?? 0,
+        usersByRole,
+        admins: adminRows.filter((a) => a.tenantId === t.id).map(({ userId, name, email }) => ({ userId, name, email })),
+        workspaces: ws.map((w) => ({ id: w.id, name: w.name, users: usersByWs.get(w.id) ?? 0 })),
+      };
+    });
+
+    return {
+      totals: {
+        users: companies.reduce((a, c) => a + c.users, 0),
+        admins: new Set(adminRows.map((a) => a.userId)).size,
+        companies: companies.length,
+        workspaces: wsRows.length,
+      },
+      companies,
     };
   });
 
