@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { ROLE_LABELS, ROLE_ORDER } from "@/lib/auth/capabilities";
 import { formatDate } from "@/lib/utils/dates";
 import { getPlatformUsers, type PlatformUsersCompany } from "@/lib/api/platform";
+import { usePagination } from "@/components/ui/Pagination";
 
 type Data = Awaited<ReturnType<typeof getPlatformUsers>>;
 
@@ -91,6 +92,14 @@ export default function PlatformUsersPage() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = (data?.companies ?? []).filter(
+    (c) =>
+      !needle ||
+      c.name.toLowerCase().includes(needle) ||
+      c.admins.some((a) => a.name.toLowerCase().includes(needle) || a.email.toLowerCase().includes(needle)),
+  );
+  const { pageItems, pager, topRef } = usePagination(shown);
 
   useEffect(() => {
     getPlatformUsers()
@@ -100,14 +109,6 @@ export default function PlatformUsersPage() {
 
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState />;
-
-  const needle = q.trim().toLowerCase();
-  const shown = data.companies.filter(
-    (c) =>
-      !needle ||
-      c.name.toLowerCase().includes(needle) ||
-      c.admins.some((a) => a.name.toLowerCase().includes(needle) || a.email.toLowerCase().includes(needle)),
-  );
 
   return (
     <div className="space-y-6">
@@ -135,12 +136,13 @@ export default function PlatformUsersPage() {
         />
       </div>
 
-      <div className="space-y-4">
-        {shown.map((c) => (
+      <div ref={topRef} className="scroll-mt-24 space-y-4">
+        {pageItems.map((c) => (
           <CompanyUsers key={c.id} c={c} />
         ))}
         {!shown.length ? <p className="text-sm text-[var(--muted)]">{q ? "Nothing matches that search." : "No companies yet."}</p> : null}
       </div>
+      {pager}
     </div>
   );
 }

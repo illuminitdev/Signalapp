@@ -7,7 +7,6 @@ import { RequireCap } from "@/components/common/RequireCap";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Card } from "@/components/ui/Card";
 import { listAccounts, type Account } from "@/lib/api/accounts";
 
 function Pipeline({ workspaceId }: { workspaceId: string }) {
@@ -30,10 +29,6 @@ function Pipeline({ workspaceId }: { workspaceId: string }) {
         title="Accepted accounts"
         description="Accounts sales has accepted. Acceptance is tracked separately from opportunity stage and from tasks."
       />
-      <Card className="!py-3 text-sm text-[var(--muted)]">
-        Opportunity stages and values come from a connected CRM. CRM sync isn&apos;t part of Phase 1, so no stage, value
-        or meeting is inferred here.
-      </Card>
       {accounts.length ? <AccountTable accounts={accounts} /> : <EmptyState title="No accepted accounts yet" />}
     </div>
   );

@@ -11,10 +11,12 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { listSharedHandoffs, type SharedHandoff } from "@/lib/api/handoffs";
 import { formatDate } from "@/lib/utils/dates";
 import { Card } from "@/components/ui/Card";
+import { usePagination } from "@/components/ui/Pagination";
 
 function Inbox({ workspaceId }: { workspaceId: string }) {
   const [rows, setRows] = useState<SharedHandoff[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { pageItems, pager, topRef } = usePagination(rows ?? []);
 
   useEffect(() => {
     listSharedHandoffs(workspaceId)
@@ -33,23 +35,26 @@ function Inbox({ workspaceId }: { workspaceId: string }) {
         description="Only accounts a sales reviewer has explicitly shared with you appear here, with only the details they chose to share."
       />
       {rows.length ? (
-        <ul className="space-y-3">
-          {rows.map((h) => (
-            <li key={h.id}>
-              <Link href={`/partner/${h.id}`} className="block">
-                <Card className="!p-4 hover:border-[var(--red)]">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold">{h.accountName}</p>
-                    <StatusBadge status={h.state} />
-                  </div>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    Shared {formatDate(h.sharedAt)} · due {formatDate(h.dueAt)}
-                  </p>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div>
+          <ul ref={topRef} className="scroll-mt-24 space-y-3">
+            {pageItems.map((h) => (
+              <li key={h.id}>
+                <Link href={`/partner/${h.id}`} className="block">
+                  <Card className="!p-4 hover:border-[var(--red)]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold">{h.accountName}</p>
+                      <StatusBadge status={h.state} />
+                    </div>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      Shared {formatDate(h.sharedAt)} · due {formatDate(h.dueAt)}
+                    </p>
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {pager}
+        </div>
       ) : (
         <EmptyState title="Nothing has been shared with you yet" />
       )}

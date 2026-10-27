@@ -6,8 +6,10 @@ import { StatusBadge } from "../common/StatusBadge";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../common/EmptyState";
+import { usePagination } from "../ui/Pagination";
 
 export function OpportunityFeed({ accounts }: { accounts: Account[] }) {
+  const { pageItems, pager, topRef } = usePagination(accounts);
   if (!accounts.length) {
     return (
       <EmptyState
@@ -18,8 +20,8 @@ export function OpportunityFeed({ accounts }: { accounts: Account[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-[23px]">
-      {accounts.map((a) => (
+    <div ref={topRef} className="flex flex-col gap-[23px] scroll-mt-24">
+      {pageItems.map((a) => (
         <article
           key={a.id}
           className="rounded-[10px] border border-[var(--line)] bg-white p-[25px]"
@@ -81,6 +83,7 @@ export function OpportunityFeed({ accounts }: { accounts: Account[] }) {
           </div>
         </article>
       ))}
+      {pager}
     </div>
   );
 }

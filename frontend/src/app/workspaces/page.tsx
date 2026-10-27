@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { usePagination } from "@/components/ui/Pagination";
 import { ROLE_LABELS, ROLE_ORDER } from "@/lib/auth/capabilities";
 import { formatDate } from "@/lib/utils/dates";
 import { createCompanyWorkspace, listCompanyWorkspaces, type CompanyWorkspace } from "@/lib/api/companyWorkspaces";
@@ -86,6 +87,7 @@ function Workspaces({ workspaceId }: { workspaceId: string }) {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ name: string; admins: string[] } | null>(null);
+  const { pageItems, pager } = usePagination(rows ?? []);
 
   const refresh = useCallback(async () => {
     try {
@@ -189,10 +191,11 @@ function Workspaces({ workspaceId }: { workspaceId: string }) {
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {rows.map((w) => (
+        {pageItems.map((w) => (
           <WorkspaceCard key={w.id} w={w} current={w.id === workspaceId} />
         ))}
       </div>
+      {pager}
     </div>
   );
 }

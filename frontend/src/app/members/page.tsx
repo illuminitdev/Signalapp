@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { usePagination } from "@/components/ui/Pagination";
 
 const ROLES = ["tenant_admin", "researcher", "sdr", "sales_reviewer", "partner", "analyst"] as const;
 
@@ -32,6 +33,7 @@ function Members({ workspaceId }: { workspaceId: string }) {
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState("");
+  const { pageItems, pager } = usePagination(rows);
 
   const refresh = useCallback(async () => {
     try {
@@ -121,7 +123,7 @@ function Members({ workspaceId }: { workspaceId: string }) {
       <Card>
         <h2 className="text-[15px]">Active members</h2>
         <ul className="mt-3 divide-y divide-[var(--line)]">
-          {rows.map((m) => (
+          {pageItems.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
               <div>
                 <p className="font-medium">
@@ -212,6 +214,7 @@ function Members({ workspaceId }: { workspaceId: string }) {
           ))}
           {!rows.length ? <li className="py-3 text-sm text-[var(--muted)]">No active members.</li> : null}
         </ul>
+        {pager}
       </Card>
     </div>
   );

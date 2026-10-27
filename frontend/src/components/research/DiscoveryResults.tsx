@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePagination } from "../ui/Pagination";
 import { useState } from "react";
 import type { DiscoveryRow } from "../../lib/api/research";
 import { downloadFile } from "../../lib/api/accounts";
@@ -23,6 +24,7 @@ export function DiscoveryResults({
   canExport: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const { pageItems, pager } = usePagination(rows);
 
   return (
     <section aria-labelledby="results-heading" className="space-y-3">
@@ -62,7 +64,7 @@ export function DiscoveryResults({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {pageItems.map((r) => (
               <tr key={r.accountId} className="border-b border-[var(--line)] align-top last:border-0">
                 <td className="px-4 py-3.5">
                   <p className="font-semibold text-[var(--foreground)]">
@@ -94,6 +96,7 @@ export function DiscoveryResults({
           </tbody>
         </table>
       </TableWrap>
+      {pager}
       <p className="text-xs text-[var(--muted)]">
         <span className="font-semibold">Check company</span> = the article named the company but we couldn&apos;t confirm its website, so
         make sure it&apos;s the right firm. Priority is a ranking aid from fit, recency and source quality — not a purchase probability.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RequireCap } from "@/components/common/RequireCap";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -28,6 +29,7 @@ function Suppressions({ workspaceId }: { workspaceId: string }) {
   const [expires, setExpires] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { pageItems, pager, topRef } = usePagination(rows ?? []);
 
   const refresh = useCallback(async () => {
     try {
@@ -112,54 +114,57 @@ function Suppressions({ workspaceId }: { workspaceId: string }) {
       {rows === null ? (
         error ? <ErrorState message={error} /> : <LoadingState />
       ) : rows.length ? (
-        <TableWrap>
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-[var(--line)] bg-[var(--table-head)] text-[12px] text-[var(--muted)]">
-              <tr>
-                <th scope="col" className="px-4 py-3">Domain / email</th>
-                <th scope="col" className="px-4 py-3">Reason</th>
-                <th scope="col" className="px-4 py-3">Source</th>
-                <th scope="col" className="px-4 py-3">Effective</th>
-                <th scope="col" className="px-4 py-3">Status</th>
-                <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((s) => (
-                <tr key={s.id} className="border-b border-[var(--line)] last:border-0">
-                  <td className="px-4 py-3 font-medium">{s.addressOrDomain}</td>
-                  <td className="px-4 py-3">{humanize(s.reason)}</td>
-                  <td className="px-4 py-3 text-[var(--muted)]">{humanize(s.source)}</td>
-                  <td className="px-4 py-3 text-[var(--muted)]">{formatDate(s.effectiveAt)}</td>
-                  <td className="px-4 py-3">
-                    {active(s) ? (
-                      <Badge tone="red">Active{s.expiresAt ? ` until ${formatDate(s.expiresAt)}` : ""}</Badge>
-                    ) : (
-                      <Badge>Expired {formatDate(s.expiresAt)}</Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {active(s) ? (
-                      <Button
-                        variant="ghost"
-                        onClick={async () => {
-                          try {
-                            await expireSuppression(workspaceId, s.id);
-                            await refresh();
-                          } catch (e) {
-                            setError(e instanceof Error ? e.message : "Could not expire");
-                          }
-                        }}
-                      >
-                        Expire now
-                      </Button>
-                    ) : null}
-                  </td>
+        <div ref={topRef} className="scroll-mt-24">
+          <TableWrap>
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-[var(--line)] bg-[var(--table-head)] text-[12px] text-[var(--muted)]">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Domain / email</th>
+                  <th scope="col" className="px-4 py-3">Reason</th>
+                  <th scope="col" className="px-4 py-3">Source</th>
+                  <th scope="col" className="px-4 py-3">Effective</th>
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
+              </thead>
+              <tbody>
+                {pageItems.map((s) => (
+                  <tr key={s.id} className="border-b border-[var(--line)] last:border-0">
+                    <td className="px-4 py-3 font-medium">{s.addressOrDomain}</td>
+                    <td className="px-4 py-3">{humanize(s.reason)}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{humanize(s.source)}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{formatDate(s.effectiveAt)}</td>
+                    <td className="px-4 py-3">
+                      {active(s) ? (
+                        <Badge tone="red">Active{s.expiresAt ? ` until ${formatDate(s.expiresAt)}` : ""}</Badge>
+                      ) : (
+                        <Badge>Expired {formatDate(s.expiresAt)}</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {active(s) ? (
+                        <Button
+                          variant="ghost"
+                          onClick={async () => {
+                            try {
+                              await expireSuppression(workspaceId, s.id);
+                              await refresh();
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : "Could not expire");
+                            }
+                          }}
+                        >
+                          Expire now
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+          {pager}
+        </div>
       ) : (
         <EmptyState title="No suppressions" />
       )}

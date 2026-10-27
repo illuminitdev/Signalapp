@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/Card";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { usePagination } from "@/components/ui/Pagination";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER } from "@/lib/auth/capabilities";
 import { formatDate } from "@/lib/utils/dates";
 import type { MembershipRow } from "@/lib/api/memberships";
@@ -35,6 +36,13 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
+  const needle = q.trim().toLowerCase();
+  const shown = (rows ?? [])
+    .filter((m) => !roleFilter || m.role === roleFilter)
+    .filter((m) => !needle || m.name.toLowerCase().includes(needle) || m.email.toLowerCase().includes(needle))
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || a.name.localeCompare(b.name));
+  const { pageItems, pager } = usePagination(shown);
+
   const refresh = useCallback(async () => {
     try {
       const res = await listWorkspaceMembers(workspaceId, targetId);
@@ -55,11 +63,6 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const byRole: Record<string, number> = {};
   for (const m of rows) byRole[m.role] = (byRole[m.role] ?? 0) + 1;
-  const needle = q.trim().toLowerCase();
-  const shown = rows
-    .filter((m) => !roleFilter || m.role === roleFilter)
-    .filter((m) => !needle || m.name.toLowerCase().includes(needle) || m.email.toLowerCase().includes(needle))
-    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || a.name.localeCompare(b.name));
   const canOpen = targetId !== workspaceId && workspaces.some((w) => w.id === targetId);
 
   return (
@@ -214,7 +217,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {shown.map((m) => (
+              {pageItems.map((m) => (
                 <tr key={m.id}>
                   <td className="py-3 pr-4 font-medium">
                     {m.name} {m.userId === user?.id ? <span className="font-normal text-[var(--muted)]">(you)</span> : null}
@@ -268,6 +271,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
             </tbody>
           </table>
         </div>
+        {pager}
       </Card>
     </div>
   );

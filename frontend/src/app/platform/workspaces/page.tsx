@@ -16,6 +16,7 @@ import {
   type PlatformWorkspace,
 } from "@/lib/api/platform";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { usePagination } from "@/components/ui/Pagination";
 
 const EMPTY = { tenantId: "", name: "", adminEmail: "", adminName: "", adminPassword: "" };
 
@@ -29,6 +30,8 @@ export default function PlatformWorkspacesPage() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ name: string; admins: string[]; existingAccount: boolean } | null>(null);
+  const shown = filter ? (rows ?? []).filter((w) => w.tenantId === filter) : (rows ?? []);
+  const { pageItems, pager } = usePagination(shown);
 
   const refresh = useCallback(async () => {
     try {
@@ -48,7 +51,6 @@ export default function PlatformWorkspacesPage() {
   if (!rows) return <LoadingState />;
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
-  const shown = filter ? rows.filter((w) => w.tenantId === filter) : rows;
 
   return (
     <div className="space-y-6">
@@ -173,7 +175,7 @@ export default function PlatformWorkspacesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)] tabular-nums">
-              {shown.map((w) => (
+              {pageItems.map((w) => (
                 <tr key={w.id}>
                   <td className="py-3 pr-4 font-medium">{w.name}</td>
                   <td className="py-3 pr-4">{w.companyName}</td>
@@ -195,6 +197,7 @@ export default function PlatformWorkspacesPage() {
             </tbody>
           </table>
         </div>
+        {pager}
       </Card>
     </div>
   );

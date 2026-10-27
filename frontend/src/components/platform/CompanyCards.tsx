@@ -2,6 +2,7 @@ import { Briefcase, CalendarDays, Layers, Users, type LucideIcon } from "lucide-
 import { ROLE_LABELS } from "@/lib/auth/capabilities";
 import { formatDate } from "@/lib/utils/dates";
 import type { PlatformCompany } from "@/lib/api/platform";
+import { usePagination } from "@/components/ui/Pagination";
 
 const AVATAR_TONES = [
   "bg-[var(--badge-blue-bg)] text-[var(--badge-blue-fg)]",
@@ -110,6 +111,7 @@ function CompanyCard({ c }: { c: PlatformCompany }) {
 
 /** Card grid of companies (counts only), used on the Companies page. */
 export function CompanyCards({ companies, empty }: { companies: PlatformCompany[]; empty: React.ReactNode }) {
+  const { pageItems, pager } = usePagination(companies);
   if (!companies.length) {
     return (
       <div className="rounded-[12px] border border-dashed border-[var(--input-border)] bg-white px-6 py-12 text-center text-sm text-[var(--muted)]">
@@ -118,10 +120,13 @@ export function CompanyCards({ companies, empty }: { companies: PlatformCompany[
     );
   }
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {companies.map((c) => (
-        <CompanyCard key={c.id} c={c} />
-      ))}
+    <div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {pageItems.map((c) => (
+          <CompanyCard key={c.id} c={c} />
+        ))}
+      </div>
+      {pager}
     </div>
   );
 }

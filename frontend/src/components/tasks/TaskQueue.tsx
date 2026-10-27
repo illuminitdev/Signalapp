@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePagination } from "../ui/Pagination";
 import { useEffect, useState } from "react";
 import { sendForReview, TASK_TYPE_LABELS, type Task } from "../../lib/api/tasks";
 import { listPeople, type Account } from "../../lib/api/accounts";
@@ -155,6 +156,8 @@ export function TaskQueue({
       return next;
     });
 
+  const { pageItems, pager, topRef } = usePagination(tasks);
+
   if (!tasks.length) {
     return <EmptyState title="No tasks match" detail="Change the filters or create a task." />;
   }
@@ -172,144 +175,147 @@ export function TaskQueue({
 
   const now = Date.now();
   return (
-    <ul className="space-y-3">
-      {tasks.map((t) => {
-        const open = t.status === "open" || t.status === "in_progress";
-        const overdue = open && t.dueAt && new Date(t.dueAt).getTime() < now;
-        const showDetails = (t.status === "in_progress") !== toggled.has(t.id);
-        const account = accounts?.get(t.accountId);
-        return (
-          <li key={t.id}>
-            <Card className="!p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-[var(--foreground)]">
-                    {TASK_TYPE_LABELS[t.type] ?? humanize(t.type)} ·{" "}
-                    <Link href={`/accounts/${t.accountId}`} className="hover:text-[var(--red-active)]">
-                      {accountNames.get(t.accountId) ?? "Account"}
-                    </Link>
-                  </p>
-                  <p className="text-sm text-[var(--muted)]">{t.instruction ?? "No instruction"}</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Owner {peopleNames.get(t.ownerUserId) ?? "—"} · Due {t.dueAt ? formatDate(t.dueAt) : "—"} ({t.timezone})
-                  </p>
-                  <p className="text-xs text-[var(--muted)]">
-                    Assigned by {peopleNames.get(t.createdBy) ?? "—"} · {formatDate(t.createdAt)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {overdue ? <Badge tone="red">Overdue</Badge> : null}
-                  {t.priority !== "normal" ? <Badge tone={t.priority === "urgent" || t.priority === "high" ? "amber" : "default"}>{humanize(t.priority)}</Badge> : null}
-                  <StatusBadge status={t.status} />
-                </div>
-              </div>
-              {showDetails ? (
-                <div className="mt-3 space-y-3 rounded-[7px] border border-[var(--line)] bg-[var(--chip-bg)] p-3 text-sm">
+    <div>
+      <ul ref={topRef} className="scroll-mt-24 space-y-3">
+        {pageItems.map((t) => {
+          const open = t.status === "open" || t.status === "in_progress";
+          const overdue = open && t.dueAt && new Date(t.dueAt).getTime() < now;
+          const showDetails = (t.status === "in_progress") !== toggled.has(t.id);
+          const account = accounts?.get(t.accountId);
+          return (
+            <li key={t.id}>
+              <Card className="!p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Account</p>
-                    <p className="font-medium text-[var(--foreground)]">{accountNames.get(t.accountId) ?? "Account"}</p>
-                    {account ? (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
-                        <span>{[account.domain, account.country].filter(Boolean).join(" · ") || "Website unknown"}</span>
-                        <StatusBadge status={account.researchState} />
-                        <StatusBadge status={account.acceptanceState} />
-                        <span>Priority {account.fitScore ?? "—"} / 100</span>
-                      </div>
+                    <p className="font-semibold text-[var(--foreground)]">
+                      {TASK_TYPE_LABELS[t.type] ?? humanize(t.type)} ·{" "}
+                      <Link href={`/accounts/${t.accountId}`} className="hover:text-[var(--red-active)]">
+                        {accountNames.get(t.accountId) ?? "Account"}
+                      </Link>
+                    </p>
+                    <p className="text-sm text-[var(--muted)]">{t.instruction ?? "No instruction"}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      Owner {peopleNames.get(t.ownerUserId) ?? "—"} · Due {t.dueAt ? formatDate(t.dueAt) : "—"} ({t.timezone})
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      Assigned by {peopleNames.get(t.createdBy) ?? "—"} · {formatDate(t.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {overdue ? <Badge tone="red">Overdue</Badge> : null}
+                    {t.priority !== "normal" ? <Badge tone={t.priority === "urgent" || t.priority === "high" ? "amber" : "default"}>{humanize(t.priority)}</Badge> : null}
+                    <StatusBadge status={t.status} />
+                  </div>
+                </div>
+                {showDetails ? (
+                  <div className="mt-3 space-y-3 rounded-[7px] border border-[var(--line)] bg-[var(--chip-bg)] p-3 text-sm">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Account</p>
+                      <p className="font-medium text-[var(--foreground)]">{accountNames.get(t.accountId) ?? "Account"}</p>
+                      {account ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
+                          <span>{[account.domain, account.country].filter(Boolean).join(" · ") || "Website unknown"}</span>
+                          <StatusBadge status={account.researchState} />
+                          <StatusBadge status={account.acceptanceState} />
+                          <span>Priority {account.fitScore ?? "—"} / 100</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Instruction</p>
+                      <p>{t.instruction ?? "No instruction — follow the steps below."}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">What to do</p>
+                      <ol className="mt-1 list-decimal space-y-1 pl-5">
+                        {(STEPS[t.type] ?? []).map((s) => (
+                          <li key={s}>{s}</li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/accounts/${t.accountId}`}>
+                        <Button>Open account brief</Button>
+                      </Link>
+                    </div>
+                    {t.type === "research" && open && workspaceId && can("submit_review") ? (
+                      <SendForReviewForm
+                        task={t}
+                        workspaceId={workspaceId}
+                        onSent={async (message) => {
+                          await onSent?.(message);
+                          onAccountChanged?.();
+                        }}
+                      />
                     ) : null}
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Instruction</p>
-                    <p>{t.instruction ?? "No instruction — follow the steps below."}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">What to do</p>
-                    <ol className="mt-1 list-decimal space-y-1 pl-5">
-                      {(STEPS[t.type] ?? []).map((s) => (
-                        <li key={s}>{s}</li>
-                      ))}
-                    </ol>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link href={`/accounts/${t.accountId}`}>
-                      <Button>Open account brief</Button>
-                    </Link>
-                  </div>
-                  {t.type === "research" && open && workspaceId && can("submit_review") ? (
-                    <SendForReviewForm
-                      task={t}
-                      workspaceId={workspaceId}
-                      onSent={async (message) => {
-                        await onSent?.(message);
-                        onAccountChanged?.();
+                ) : null}
+                {open && canEdit ? (
+                  pending?.taskId === t.id ? (
+                    <form
+                      className="mt-3 space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void submit(
+                          t.id,
+                          pending.kind === "complete"
+                            ? { status: "completed", outcome: text }
+                            : { status: "cancelled", cancelReason: text },
+                        );
                       }}
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-              {open && canEdit ? (
-                pending?.taskId === t.id ? (
-                  <form
-                    className="mt-3 space-y-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void submit(
-                        t.id,
-                        pending.kind === "complete"
-                          ? { status: "completed", outcome: text }
-                          : { status: "cancelled", cancelReason: text },
-                      );
-                    }}
-                  >
-                    <label className="block text-xs font-semibold text-[var(--muted)]">
-                      {pending.kind === "complete" ? "Outcome (required)" : "Cancellation reason (required)"}
-                      <input
-                        autoFocus
-                        className={inputClass}
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        placeholder={pending.kind === "complete" ? "e.g. Spoke to IT lead, meeting being arranged" : "e.g. Duplicate of another task"}
-                      />
-                    </label>
-                    <FormError message={error} />
-                    <div className="flex gap-2">
-                      <Button type="submit" variant="primary" disabled={!text.trim()}>
-                        {pending.kind === "complete" ? "Complete task" : "Cancel task"}
+                    >
+                      <label className="block text-xs font-semibold text-[var(--muted)]">
+                        {pending.kind === "complete" ? "Outcome (required)" : "Cancellation reason (required)"}
+                        <input
+                          autoFocus
+                          className={inputClass}
+                          value={text}
+                          onChange={(e) => setText(e.target.value)}
+                          placeholder={pending.kind === "complete" ? "e.g. Spoke to IT lead, meeting being arranged" : "e.g. Duplicate of another task"}
+                        />
+                      </label>
+                      <FormError message={error} />
+                      <div className="flex gap-2">
+                        <Button type="submit" variant="primary" disabled={!text.trim()}>
+                          {pending.kind === "complete" ? "Complete task" : "Cancel task"}
+                        </Button>
+                        <Button variant="ghost" onClick={() => setPending(null)}>
+                          Back
+                        </Button>
+                      </div>
+                      {pending.kind === "complete" ? (
+                        <p className="text-xs text-[var(--muted)]">
+                          Completing records activity only. It does not change pipeline stage or log a meeting.
+                        </p>
+                      ) : null}
+                    </form>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {t.status === "open" ? (
+                        <Button onClick={() => void submit(t.id, { status: "in_progress" })}>Start</Button>
+                      ) : null}
+                      <Button variant="primary" onClick={() => setPending({ taskId: t.id, kind: "complete" })}>
+                        Complete…
                       </Button>
-                      <Button variant="ghost" onClick={() => setPending(null)}>
-                        Back
+                      <Button variant="ghost" onClick={() => setPending({ taskId: t.id, kind: "cancel" })}>
+                        Cancel…
+                      </Button>
+                      <Button variant="ghost" onClick={() => toggle(t.id)}>
+                        {showDetails ? "Hide details" : "Details"}
                       </Button>
                     </div>
-                    {pending.kind === "complete" ? (
-                      <p className="text-xs text-[var(--muted)]">
-                        Completing records activity only. It does not change pipeline stage or log a meeting.
-                      </p>
-                    ) : null}
-                  </form>
-                ) : (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {t.status === "open" ? (
-                      <Button onClick={() => void submit(t.id, { status: "in_progress" })}>Start</Button>
-                    ) : null}
-                    <Button variant="primary" onClick={() => setPending({ taskId: t.id, kind: "complete" })}>
-                      Complete…
-                    </Button>
-                    <Button variant="ghost" onClick={() => setPending({ taskId: t.id, kind: "cancel" })}>
-                      Cancel…
-                    </Button>
-                    <Button variant="ghost" onClick={() => toggle(t.id)}>
-                      {showDetails ? "Hide details" : "Details"}
-                    </Button>
-                  </div>
-                )
-              ) : !open ? (
-                <p className="mt-2 text-xs text-[var(--muted)]">
-                  {t.status === "completed" ? `Outcome: ${t.outcome}` : `Cancelled: ${t.cancelReason}`}
-                </p>
-              ) : null}
-            </Card>
-          </li>
-        );
-      })}
-    </ul>
+                  )
+                ) : !open ? (
+                  <p className="mt-2 text-xs text-[var(--muted)]">
+                    {t.status === "completed" ? `Outcome: ${t.outcome}` : `Cancelled: ${t.cancelReason}`}
+                  </p>
+                ) : null}
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
+      {pager}
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ResearchRunStatus } from "@/components/research/ResearchRunStatus";
 import { RequireCap } from "@/components/common/RequireCap";
@@ -46,6 +47,7 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
   const [found, setFound] = useState<DiscoveryRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const recentPages = usePagination(recent);
 
   const loadRecent = useCallback(async () => {
     try {
@@ -267,7 +269,7 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
         <Card>
           <h2 className="text-[15px]">Recent searches</h2>
           <ul className="mt-3 divide-y divide-[var(--line)]">
-            {recent.map((r) => (
+            {recentPages.pageItems.map((r) => (
               <li key={r.id}>
                 <button
                   type="button"
@@ -289,6 +291,7 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
               </li>
             ))}
           </ul>
+          {recentPages.pager}
         </Card>
       ) : null}
     </div>

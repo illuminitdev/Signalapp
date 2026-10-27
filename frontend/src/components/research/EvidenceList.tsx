@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePagination } from "../ui/Pagination";
 import { formatDate } from "../../lib/utils/dates";
 import { reviewEvidence, type EvidenceItem } from "../../lib/api/accounts";
 import { StatusBadge } from "../common/StatusBadge";
@@ -22,6 +23,7 @@ export function EvidenceList({
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { pageItems, pager, topRef } = usePagination(items);
 
   if (!items.length) {
     return (
@@ -34,8 +36,8 @@ export function EvidenceList({
   return (
     <div className="space-y-3">
       <FormError message={error} />
-      <ul className="space-y-3">
-        {items.map((e) => (
+      <ul ref={topRef} className="scroll-mt-24 space-y-3">
+        {pageItems.map((e) => (
           <li key={e.id}>
             <Card className="!p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -106,6 +108,7 @@ export function EvidenceList({
           </li>
         ))}
       </ul>
+      {pager}
     </div>
   );
 }
