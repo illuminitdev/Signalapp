@@ -51,11 +51,11 @@ const SECTIONS: Section[] = [
     key: "discover",
     label: "Discover",
     Icon: Compass,
-    prefix: "/discover",
+    prefix: "/researcher",
     items: [
-      { href: "/discover", label: "Opportunity feed", exact: true, visible: (can) => can("discover") },
-      { href: "/discover/search", label: "Search", visible: (can) => can("discover") },
-      { href: "/discover/playbooks", label: "Playbooks", visible: (can) => can("discover") },
+      { href: "/researcher", label: "Opportunity feed", exact: true, visible: (can) => can("discover") },
+      { href: "/researcher/search", label: "Search", visible: (can) => can("discover") },
+      { href: "/researcher/playbooks", label: "Playbooks", visible: (can) => can("discover") },
     ],
   },
   {
@@ -66,7 +66,7 @@ const SECTIONS: Section[] = [
     items: [
       { href: "/accounts", label: "Watchlist & imports", exact: true, visible: (can) => can("view_accounts") },
       {
-        href: "/accounts/acceptance",
+        href: "/sales-reviewer",
         label: "Sales acceptance",
        
         visible: (can) => can("accept") || can("submit_review"),
@@ -78,10 +78,10 @@ const SECTIONS: Section[] = [
     key: "outreach",
     label: "Outreach",
     Icon: Send,
-    prefix: "/outreach",
+    prefix: "/sdr",
     items: [
-      { href: "/outreach", label: "Tasks", exact: true, visible: (can) => can("view_tasks") },
-      { href: "/outreach/drafts", label: "Drafts", visible: (can) => can("view_drafts") },
+      { href: "/sdr", label: "Tasks", exact: true, visible: (can) => can("view_tasks") },
+      { href: "/sdr/drafts", label: "Drafts", visible: (can) => can("view_drafts") },
     ],
   },
   {
@@ -97,15 +97,15 @@ const SECTIONS: Section[] = [
     key: "members",
     label: "Members",
     Icon: Users,
-    prefix: "/members",
-    items: [{ href: "/members", label: "Members", visible: (can) => can("manage_membership") }],
+    prefix: "/tenant-admin/members",
+    items: [{ href: "/tenant-admin/members", label: "Members", visible: (can) => can("manage_membership") }],
   },
   {
     key: "workspaces",
     label: "Workspaces",
     Icon: Layers,
-    prefix: "/workspaces",
-    items: [{ href: "/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
+    prefix: "/tenant-admin/workspaces",
+    items: [{ href: "/tenant-admin/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
   },
   {
     key: "settings",
@@ -133,6 +133,11 @@ export function visibleSections(can: Can) {
   return SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => i.visible(can)) })).filter((s) => s.items.length > 0);
 }
 
+/** True when the path is in this section — its prefix or any of its own pages (e.g. /sales-reviewer under Accounts). */
+export function inSection(section: Section, pathname: string) {
+  return pathname.startsWith(section.prefix) || section.items.some((i) => pathname.startsWith(i.href));
+}
+
 /** Landing page for a member: first view their role can use. */
 export function homeFor(can: Can): string {
   return visibleSections(can)[0]?.items[0]?.href ?? "/settings/how-it-works";
@@ -144,7 +149,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { can, role, user, workspaceName, workspaces, workspaceId, selectWorkspace } = useWorkspace();
   const sections = visibleSections(can);
-  const current = sections.find((s) => pathname.startsWith(s.prefix));
+  const current = sections.find((s) => inSection(s, pathname));
   const subItems = current?.items ?? [];
   const initials = (user?.name ?? "?")
     .split(/\s+/)
@@ -189,7 +194,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onChange={(e) => {
                     selectWorkspace(e.target.value);
                     // The portal redirects to the first view this role can use there
-                    router.push("/discover");
+                    router.push("/researcher");
                   }}
                 >
                   {workspaces.map((w) => (
@@ -207,7 +212,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Primary" className="mt-5 flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
           <p className="px-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-[var(--muted)]">Menu</p>
           {sections.map((item) => {
-            const active = pathname.startsWith(item.prefix);
+            const active = inSection(item, pathname);
             const Icon = item.Icon;
             return (
               <Link

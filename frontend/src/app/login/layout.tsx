@@ -1,5 +1,5 @@
-/** Centered auth shell — login / create account only. */
-export function AuthLayout({ children }: { children: React.ReactNode }) {
+/** Centered auth shell — login only. */
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-shell">
       <section className="auth-shell__form">

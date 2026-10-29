@@ -73,10 +73,10 @@ export function OpportunityFeed({ accounts }: { accounts: Account[] }) {
               {a.acceptanceState.replaceAll("_", " ")} · research {a.researchState}
             </p>
             <div className="flex gap-2">
-              <Link href={`/accounts/${a.id}`}>
+              <Link href={`/accounts/detail?id=${a.id}`}>
                 <Button variant="secondary">Open brief</Button>
               </Link>
-              <Link href={`/accounts/${a.id}/qualification`}>
+              <Link href={`/accounts/qualification?id=${a.id}`}>
                 <Button variant="primary">Review &amp; qualify →</Button>
               </Link>
             </div>

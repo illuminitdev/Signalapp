@@ -73,7 +73,7 @@ function Feed({ workspaceId }: { workspaceId: string }) {
         title="Reasons to start a conversation"
         description="Researched accounts ranked by fit, recency and evidence quality. Scores help you prioritise; they are not purchase probabilities."
         actions={
-          <Link href="/discover/search">
+          <Link href="/researcher/search">
             <Button variant="primary">Find prospects</Button>
           </Link>
         }

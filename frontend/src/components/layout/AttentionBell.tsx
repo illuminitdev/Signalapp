@@ -28,7 +28,7 @@ export function AttentionBell() {
           Icon: Clock,
           label: "Your overdue tasks",
           count: r.tasks.length,
-          href: "/outreach",
+          href: "/sdr",
         })),
       );
     }
@@ -39,7 +39,7 @@ export function AttentionBell() {
           Icon: FileCheck2,
           label: "Briefs waiting for your review",
           count: r.accounts.length,
-          href: "/accounts/acceptance",
+          href: "/sales-reviewer",
         })),
       );
     } else if (can("submit_review")) {
@@ -49,7 +49,7 @@ export function AttentionBell() {
           Icon: RotateCcw,
           label: "Briefs returned for more research",
           count: r.accounts.length,
-          href: "/accounts/acceptance",
+          href: "/sales-reviewer",
         })),
       );
     }

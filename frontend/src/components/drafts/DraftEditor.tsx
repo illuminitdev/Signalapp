@@ -56,7 +56,7 @@ export function DraftEditor({
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold">
-          <Link href={`/accounts/${draft.accountId}`} className="hover:text-[var(--red-active)]">
+          <Link href={`/accounts/detail?id=${draft.accountId}`} className="hover:text-[var(--red-active)]">
             {draft.accountName}
           </Link>{" "}
           <span className="font-normal text-[var(--muted)]">

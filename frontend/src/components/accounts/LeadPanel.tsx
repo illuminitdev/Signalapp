@@ -155,7 +155,7 @@ export function LeadPanel({
 
         <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[var(--line)] bg-white px-6 py-4">
           <Button onClick={onClose}>Close</Button>
-          <Link href={`/accounts/${accountId}`}>
+          <Link href={`/accounts/detail?id=${accountId}`}>
             <Button variant="primary">Open full account</Button>
           </Link>
         </div>

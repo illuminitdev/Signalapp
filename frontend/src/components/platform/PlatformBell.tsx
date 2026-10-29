@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Gauge, UserX, Users } from "lucide-react";
-import { BellMenu, type BellItem } from "./AttentionBell";
-import { getPlatformOverview, listPlatformWorkspaces } from "../../lib/api/platform";
+import { BellMenu, type BellItem } from "@/components/layout/AttentionBell";
+import { getPlatformOverview, listPlatformWorkspaces } from "@/lib/api/platform";
 
 /** Platform header bell: companies and workspaces that need the app owner's attention. */
 export function PlatformBell() {

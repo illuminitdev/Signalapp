@@ -87,7 +87,7 @@ export function DiscoveryResults({
                 </td>
                 <td className="px-4 py-3.5 font-medium">{r.fitScore != null ? `${r.fitScore}/100` : "—"}</td>
                 <td className="px-4 py-3.5 text-right">
-                  <Link href={`/accounts/${r.accountId}`}>
+                  <Link href={`/accounts/detail?id=${r.accountId}`}>
                     <Button>Review</Button>
                   </Link>
                 </td>

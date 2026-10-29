@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RequireCap } from "@/components/common/RequireCap";
@@ -135,8 +135,7 @@ function SharedBrief({ workspaceId, handoffId }: { workspaceId: string; handoffI
 }
 
 export default function PartnerHandoffPage() {
-  const params = useParams();
-  const handoffId = String(params.handoffId);
+  const handoffId = useSearchParams().get("id") ?? "";
   return (
     <RequireCap cap="acknowledge_handoff">
       {(workspaceId) => <SharedBrief workspaceId={workspaceId} handoffId={handoffId} />}

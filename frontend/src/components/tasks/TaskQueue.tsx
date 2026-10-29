@@ -189,7 +189,7 @@ export function TaskQueue({
                   <div>
                     <p className="font-semibold text-[var(--foreground)]">
                       {TASK_TYPE_LABELS[t.type] ?? humanize(t.type)} ·{" "}
-                      <Link href={`/accounts/${t.accountId}`} className="hover:text-[var(--red-active)]">
+                      <Link href={`/accounts/detail?id=${t.accountId}`} className="hover:text-[var(--red-active)]">
                         {accountNames.get(t.accountId) ?? "Account"}
                       </Link>
                     </p>
@@ -234,7 +234,7 @@ export function TaskQueue({
                       </ol>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link href={`/accounts/${t.accountId}`}>
+                      <Link href={`/accounts/detail?id=${t.accountId}`}>
                         <Button>Open account brief</Button>
                       </Link>
                     </div>

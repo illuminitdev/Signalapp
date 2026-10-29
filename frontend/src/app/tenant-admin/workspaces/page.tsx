@@ -21,7 +21,7 @@ function WorkspaceCard({ w, current }: { w: CompanyWorkspace; current: boolean }
   const roles = ROLE_ORDER.filter((r) => w.membersByRole[r]);
   return (
     <Link
-      href={`/workspaces/${w.id}`}
+      href={`/tenant-admin/workspaces/detail?id=${w.id}`}
       prefetch
       className="group flex flex-col rounded-[12px] border border-[var(--line)] bg-white p-5 transition-shadow hover:shadow-[0_6px_20px_-8px_rgba(23,44,64,0.18)]"
     >

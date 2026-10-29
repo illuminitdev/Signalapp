@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { AppShell, homeFor, visibleSections } from "./AppShell";
+import { AppShell, homeFor, inSection, visibleSections } from "./AppShell";
 import { LoadingState } from "../common/LoadingState";
 import { useWorkspace, WorkspaceProvider } from "../../hooks/useWorkspace";
 
@@ -16,7 +16,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
   // Send each role to a section it can use (e.g. partners → shared handoffs)
   const sections = workspaceId ? visibleSections(can) : [];
   const allowedHere =
-    sections.some((s) => pathname.startsWith(s.prefix)) || pathname === "/settings/how-it-works" || onPasswordPage;
+    sections.some((s) => inSection(s, pathname)) || pathname === "/settings/how-it-works" || onPasswordPage;
   // The platform admin has no workspace; their home is the platform console
   const toPlatform = !loading && !mustChange && Boolean(user?.isPlatformAdmin) && !workspaceId;
   const needsRedirect = toPlatform || (mustChange && !onPasswordPage) || (Boolean(workspaceId) && !allowedHere);

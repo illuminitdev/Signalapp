@@ -316,7 +316,7 @@ function OfferSettings({ workspaceId }: { workspaceId: string }) {
             <div className="mt-5 flex justify-end gap-2">
               <Button onClick={() => setSavedOpen(false)}>Stay here</Button>
               <Link
-                href="/discover/search"
+                href="/researcher/search"
                 autoFocus
                 className="inline-flex items-center justify-center rounded-[7px] border border-transparent bg-[var(--red)] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[var(--red-hover)]"
               >

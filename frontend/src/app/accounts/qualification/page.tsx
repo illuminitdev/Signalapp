@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { BASIS_LABELS, FactEditor, FIELD_KEYS } from "@/components/qualification/FactEditor";
@@ -59,7 +59,7 @@ function QualificationView({ workspaceId, accountId }: { workspaceId: string; ac
         title="Qualification brief"
         description="Each fact records its basis and support. Unknown stays unknown; superseded values are kept in history."
         actions={
-          <Link href={`/accounts/${accountId}`}>
+          <Link href={`/accounts/detail?id=${accountId}`}>
             <Button>Back to account</Button>
           </Link>
         }
@@ -133,8 +133,7 @@ function QualificationView({ workspaceId, accountId }: { workspaceId: string; ac
 }
 
 export default function QualificationPage() {
-  const params = useParams();
-  const accountId = String(params.accountId);
+  const accountId = useSearchParams().get("id") ?? "";
   return (
     <RequireCap cap="view_accounts">
       {(workspaceId) => <QualificationView workspaceId={workspaceId} accountId={accountId} />}

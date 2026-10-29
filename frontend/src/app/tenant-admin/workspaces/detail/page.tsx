@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RequireCap } from "@/components/common/RequireCap";
@@ -67,7 +67,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
 
   return (
     <div className="space-y-6">
-      <Link href="/workspaces" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]">
+      <Link href="/tenant-admin/workspaces" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]">
         <ArrowLeft size={15} aria-hidden />
         All workspaces
       </Link>
@@ -83,7 +83,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
                 variant="ghost"
                 onClick={() => {
                   selectWorkspace(targetId);
-                  router.push("/discover");
+                  router.push("/researcher");
                 }}
               >
                 Switch to this workspace
@@ -278,7 +278,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
 }
 
 export default function WorkspaceDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const id = useSearchParams().get("id") ?? "";
   return (
     <RequireCap cap="manage_membership">{(workspaceId) => <WorkspaceUsers workspaceId={workspaceId} targetId={id} />}</RequireCap>
   );

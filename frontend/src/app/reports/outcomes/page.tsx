@@ -117,7 +117,7 @@ function OutcomesView({ workspaceId }: { workspaceId: string }) {
           Track accepted accounts, evidence corrections and research time saved during the live pilot. Automated CRM
           attribution and ranking optimisation are not connected.
         </p>
-        <Link href="/accounts/acceptance" className="mt-4 inline-block">
+        <Link href="/sales-reviewer" className="mt-4 inline-block">
           <Button>Review decisions</Button>
         </Link>
       </Card>

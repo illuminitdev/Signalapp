@@ -1,22 +1,22 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
-import { AuthLayout } from "./AuthLayout";
 import { PortalLayout } from "./PortalLayout";
 
-/** One shell switcher — auth vs workspace — so app/ only needs the root layout.tsx. */
+/** Every portal folder shares one workspace shell, so it loads once per session. */
 export function RouteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === "/login" || pathname.startsWith("/login/")) {
-    return <AuthLayout>{children}</AuthLayout>;
-  }
-
-  // `/` redirects to login; avoid portal flash while redirecting.
-  // `/platform` is the app owner's console, outside any workspace.
-  if (pathname === "/" || pathname === "/platform" || pathname.startsWith("/platform/")) {
+  // `/` redirects to login; `/login` and `/platform` bring their own layout.tsx.
+  if (pathname === "/" || /^\/(login|platform)(\/|$)/.test(pathname)) {
     return <>{children}</>;
   }
 
-  return <PortalLayout>{children}</PortalLayout>;
+  // Suspense: detail pages read `?id=` with useSearchParams
+  return (
+    <PortalLayout>
+      <Suspense>{children}</Suspense>
+    </PortalLayout>
+  );
 }

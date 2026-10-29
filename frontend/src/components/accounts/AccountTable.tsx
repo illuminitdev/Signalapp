@@ -29,7 +29,7 @@ export function AccountTable({ accounts }: { accounts: Account[] }) {
             {pageItems.map((a) => (
               <tr key={a.id} className="border-b border-[var(--line)] last:border-0">
                 <td className="px-4 py-3">
-                  <Link href={`/accounts/${a.id}`} className="font-semibold text-[var(--foreground)] hover:text-[var(--red-active)]">
+                  <Link href={`/accounts/detail?id=${a.id}`} className="font-semibold text-[var(--foreground)] hover:text-[var(--red-active)]">
                     {a.name}
                   </Link>
                   {a.source !== "manual" ? <span className="ml-2 text-xs text-[var(--muted)]">{a.source}</span> : null}

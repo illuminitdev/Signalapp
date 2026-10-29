@@ -39,7 +39,7 @@ function Inbox({ workspaceId }: { workspaceId: string }) {
           <ul ref={topRef} className="scroll-mt-24 space-y-3">
             {pageItems.map((h) => (
               <li key={h.id}>
-                <Link href={`/partner/${h.id}`} className="block">
+                <Link href={`/partner/handoff?id=${h.id}`} className="block">
                   <Card className="!p-4 hover:border-[var(--red)]">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-semibold">{h.accountName}</p>

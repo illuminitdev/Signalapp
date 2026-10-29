@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -90,7 +90,7 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
         description={[account.domain, account.country, account.legalName].filter(Boolean).join(" · ") || "No domain"}
         actions={
           <>
-            <Link href={`/accounts/${accountId}/qualification`}>
+            <Link href={`/accounts/qualification?id=${accountId}`}>
               <Button>Qualification</Button>
             </Link>
             {can("research") ? (
@@ -121,7 +121,7 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
                   setLocalError(null);
                   try {
                     await createDraft(accountId, workspaceId);
-                    router.push("/outreach/drafts");
+                    router.push("/sdr/drafts");
                   } catch (e) {
                     setLocalError(e instanceof Error ? e.message : "Could not create draft");
                   }
@@ -231,8 +231,7 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
 }
 
 export default function AccountBriefPage() {
-  const params = useParams();
-  const accountId = String(params.accountId);
+  const accountId = useSearchParams().get("id") ?? "";
   return (
     <RequireCap cap="view_accounts">
       {(workspaceId) => <AccountBrief workspaceId={workspaceId} accountId={accountId} />}

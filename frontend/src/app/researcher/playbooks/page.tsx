@@ -71,7 +71,7 @@ function Playbooks({ workspaceId }: { workspaceId: string }) {
                 </p>
               ) : null}
               <div className="mt-auto pt-5">
-                <Link href="/discover/search">
+                <Link href="/researcher/search">
                   <Button variant="primary" className="w-full">
                     Search with this playbook
                   </Button>

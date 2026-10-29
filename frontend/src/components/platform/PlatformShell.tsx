@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Building2, Layers, LayoutDashboard, LogOut, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
-import { logout, me, type User } from "../../lib/auth/session";
-import { ApiError } from "../../lib/api/client";
-import { LoadingState } from "../common/LoadingState";
+import { logout, me, type User } from "@/lib/auth/session";
+import { ApiError } from "@/lib/api/client";
+import { LoadingState } from "@/components/common/LoadingState";
 import { PlatformBell } from "./PlatformBell";
 
 const NAV: Array<{ href: string; label: string; Icon: LucideIcon; exact?: boolean }> = [
@@ -28,7 +28,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
     me()
       .then(({ user: u }) => {
         if (u.mustChangePassword) return router.replace("/settings/password");
-        if (!u.isPlatformAdmin) return router.replace("/discover");
+        if (!u.isPlatformAdmin) return router.replace("/researcher");
         setUser(u);
       })
       .catch((e) => {

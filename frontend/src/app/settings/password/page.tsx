@@ -45,7 +45,7 @@ export default function ChangePasswordPage() {
               setConfirm("");
               if (forced) {
                 await refresh();
-                router.replace("/discover");
+                router.replace("/researcher");
               } else {
                 setNotice("Password changed. Other devices have been signed out.");
               }
