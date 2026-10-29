@@ -2,6 +2,7 @@ import { api } from "./client";
 
 export type Offer = {
   offering: string;
+  activePlaybookTemplateKey?: string;
   buyerRoles: string[];
   industries: string[];
   companySizes: string[];
@@ -32,6 +33,20 @@ export function saveOffer(workspaceId: string, body: Record<string, unknown>) {
   return api<{ ok: boolean; territory: string[]; unsupportedFilters: string[]; structuredQuery: Record<string, unknown> }>(
     `/v1/workspaces/${workspaceId}/settings/offer`,
     { method: "PUT", body: JSON.stringify(body) },
+  );
+}
+
+export function setActivePlaybook(workspaceId: string, templateKey: string) {
+  return api<{ ok: boolean; activePlaybookTemplateKey: string }>(
+    `/v1/workspaces/${workspaceId}/settings/active-playbook`,
+    { method: "PUT", body: JSON.stringify({ templateKey }) },
+  );
+}
+
+export function setEventWindow(workspaceId: string, eventWindowDays: number) {
+  return api<{ ok: boolean; eventWindowDays: number }>(
+    `/v1/workspaces/${workspaceId}/settings/event-window`,
+    { method: "PUT", body: JSON.stringify({ eventWindowDays }) },
   );
 }
 

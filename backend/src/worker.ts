@@ -2,6 +2,7 @@ import { getEnv } from "./config/env.js";
 import { getBoss, JOB_IMPORT, JOB_RESEARCH } from "./jobs/queue.js";
 import { handleCsvImport } from "./jobs/handlers/csvImport.js";
 import { handleResearchRun } from "./jobs/handlers/researchRun.js";
+import { runDueMonitors } from "./services/monitors.js";
 
 async function main() {
   getEnv();
@@ -21,7 +22,16 @@ async function main() {
     await handleCsvImport(job.data as { importJobId: string; csvText: string });
   });
 
-  console.log("Signal worker listening for research-run, csv-import");
+  // Background cron check for active monitors whose frequency interval has elapsed
+  setInterval(async () => {
+    try {
+      await runDueMonitors();
+    } catch (err) {
+      console.error("[monitor-cron]", err);
+    }
+  }, 60_000);
+
+  console.log("Signal worker listening for research-run, csv-import, and active scheduled monitors");
 }
 
 main().catch((err) => {
