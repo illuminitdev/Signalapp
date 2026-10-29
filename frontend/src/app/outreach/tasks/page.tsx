@@ -174,6 +174,7 @@ function SdrQueue({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-export default function OutreachPage() {
+export default function TasksPage() {
   return <RequireCap cap="view_tasks">{(workspaceId) => <SdrQueue workspaceId={workspaceId} />}</RequireCap>;
 }
+

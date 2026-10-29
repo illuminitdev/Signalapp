@@ -121,7 +121,7 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
                   setLocalError(null);
                   try {
                     await createDraft(accountId, workspaceId);
-                    router.push("/sdr/drafts");
+                    router.push("/outreach/drafts");
                   } catch (e) {
                     setLocalError(e instanceof Error ? e.message : "Could not create draft");
                   }

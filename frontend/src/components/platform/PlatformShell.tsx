@@ -28,7 +28,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
     me()
       .then(({ user: u }) => {
         if (u.mustChangePassword) return router.replace("/settings/password");
-        if (!u.isPlatformAdmin) return router.replace("/researcher");
+        if (!u.isPlatformAdmin) return router.replace("/discover/feed");
         setUser(u);
       })
       .catch((e) => {

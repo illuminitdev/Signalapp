@@ -67,7 +67,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
 
   return (
     <div className="space-y-6">
-      <Link href="/tenant-admin/workspaces" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]">
+      <Link href="/workspaces" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]">
         <ArrowLeft size={15} aria-hidden />
         All workspaces
       </Link>
@@ -83,7 +83,7 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
                 variant="ghost"
                 onClick={() => {
                   selectWorkspace(targetId);
-                  router.push("/researcher");
+                  router.push("/discover");
                 }}
               >
                 Switch to this workspace

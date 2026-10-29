@@ -110,6 +110,7 @@ function Watchlist({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-export default function AccountsPage() {
+export default function WatchlistPage() {
   return <RequireCap cap="view_accounts">{(workspaceId) => <Watchlist workspaceId={workspaceId} />}</RequireCap>;
 }
+
