@@ -95,7 +95,8 @@ export async function createMonitorFromPlaybook(workspaceId: string, userId: str
   };
 
   const id = newId("mon");
-  const isSimulation = !isExaConfigured();
+  // Kept unchecked (simulation) by default to protect API quota; user can check "Live Exa search" on demand
+  const isSimulation = true;
   const [created] = await db
     .insert(monitors)
     .values({
