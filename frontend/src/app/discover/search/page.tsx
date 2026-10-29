@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { usePagination } from "@/components/ui/Pagination";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ResearchRunStatus } from "@/components/research/ResearchRunStatus";
@@ -9,6 +10,7 @@ import { DiscoveryResults } from "@/components/research/DiscoveryResults";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import {
+  deleteResearchRun,
   listResearchRuns,
   parseBrief,
   startResearchRun,
@@ -58,11 +60,12 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
   const [found, setFound] = useState<DiscoveryRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const recentPages = usePagination(recent);
+  const [pageSize, setPageSize] = useState(10);
+  const recentPages = usePagination(recent, pageSize);
 
   const loadRecent = useCallback(async () => {
     try {
-      const { runs } = await listResearchRuns(workspaceId, { mode: "discovery", limit: 10 });
+      const { runs } = await listResearchRuns(workspaceId, { mode: "discovery", limit: 100 });
       setRecent(runs);
       // Reopen the search viewed last, or else the newest one
       setRunId((current) => (current && runs.some((r) => r.id === current) ? current : (runs[0]?.id ?? null)));
@@ -316,12 +319,35 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
         <DiscoveryResults rows={found.filter((r) => !makeExclusionMatcher(offer?.exclusions ?? [])(r))} runId={runId} workspaceId={workspaceId} canExport={can("export")} />
       ) : null}
 
-      {recent.length > 1 ? (
+      {recent.length > 0 ? (
         <Card>
-          <h2 className="text-[15px]">Recent searches</h2>
-          <ul className="mt-3 divide-y divide-[var(--line)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-[var(--foreground)]">Recent searches</h2>
+              <p className="text-xs text-[var(--muted)]">
+                {recent.length} saved search{recent.length === 1 ? "" : "es"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="recent-pagesize" className="text-xs text-[var(--muted)]">
+                Show:
+              </label>
+              <select
+                id="recent-pagesize"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-md border border-[var(--line)] bg-white px-2 py-1 text-xs font-medium text-[var(--foreground)] shadow-xs focus:border-[var(--red-active)] focus:outline-none"
+              >
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+            </div>
+          </div>
+          <ul className="divide-y divide-[var(--line)]">
             {recentPages.pageItems.map((r) => (
-              <li key={r.id}>
+              <li key={r.id} className="group relative flex items-center">
                 <button
                   type="button"
                   aria-current={r.id === runId ? "true" : undefined}
@@ -329,7 +355,7 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
                     setFound([]);
                     setRunId(r.id);
                   }}
-                  className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-md px-2 py-2.5 text-left text-sm hover:bg-[var(--chip-bg)] ${
+                  className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-md py-2.5 pl-2 pr-10 text-left text-sm transition-colors hover:bg-[var(--chip-bg)] ${
                     r.id === runId ? "bg-[var(--red-tint)]" : ""
                   }`}
                 >
@@ -338,6 +364,28 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
                     {r.companies != null ? `${r.companies} ${r.companies === 1 ? "company" : "companies"}` : <StatusBadge status={r.status} />}
                     <span>{formatDate(r.createdAt)}</span>
                   </span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete search"
+                  title="Delete search"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm("Delete this recent search?")) return;
+                    try {
+                      await deleteResearchRun(workspaceId, r.id);
+                      setRecent((prev) => prev.filter((item) => item.id !== r.id));
+                      if (runId === r.id) {
+                        setRunId(null);
+                        setFound([]);
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Could not delete search");
+                    }
+                  }}
+                  className="absolute right-2 flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] opacity-60 transition-all hover:bg-[var(--red-tint)] hover:text-[var(--red-active)] hover:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 size={14} strokeWidth={1.75} aria-hidden />
                 </button>
               </li>
             ))}

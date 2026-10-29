@@ -217,7 +217,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.key}
                 href={item.items[0]!.href}
-                prefetch
+                prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={`group relative flex h-10 items-center gap-3 rounded-lg px-3 text-[13.5px] font-medium transition-colors ${
                   active

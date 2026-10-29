@@ -20,6 +20,28 @@ import { listSharedHandoffs } from "../../lib/api/handoffs";
 
 export type BellItem = { key: string; Icon: LucideIcon; label: string; count: number; href: string };
 
+type StoredBellState = {
+  readCounts: Record<string, number>;
+  clearedCounts: Record<string, number>;
+};
+
+function readBellStorage(key: string): StoredBellState {
+  if (typeof window === "undefined") return { readCounts: {}, clearedCounts: {} };
+  try {
+    const raw = localStorage.getItem(`signal:bell:${key}`);
+    return raw ? JSON.parse(raw) : { readCounts: {}, clearedCounts: {} };
+  } catch {
+    return { readCounts: {}, clearedCounts: {} };
+  }
+}
+
+function writeBellStorage(key: string, data: StoredBellState) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`signal:bell:${key}`, JSON.stringify(data));
+  } catch {}
+}
+
 /**
  * Header bell: work waiting for the signed-in person, computed from live data
  * for their role. Nothing is sent anywhere; it only links to the right queue.
@@ -85,18 +107,44 @@ export function AttentionBell() {
     return () => clearInterval(t);
   }, [load]);
 
-  return <BellMenu items={items} onOpen={() => void load()} />;
+  return (
+    <BellMenu
+      storageKey={`ws:${workspaceId ?? "default"}:${user?.id ?? "me"}`}
+      items={items}
+      onOpen={() => void load()}
+    />
+  );
 }
 
 /** Bell button with a count badge and a dropdown of linked items. */
-export function BellMenu({ items, onOpen }: { items: BellItem[]; onOpen?: () => void }) {
+export function BellMenu({
+  items,
+  onOpen,
+  storageKey = "default",
+}: {
+  items: BellItem[];
+  onOpen?: () => void;
+  storageKey?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Track which keys have been marked as read (dimmed but still visible)
-  const [readKeys, setReadKeys] = useState<Set<string>>(new Set());
-  // Track which keys have been cleared/dismissed (hidden)
-  const [clearedKeys, setClearedKeys] = useState<Set<string>>(new Set());
+  const [state, setState] = useState<StoredBellState>({ readCounts: {}, clearedCounts: {} });
+  const [loaded, setLoaded] = useState(false);
+
+  // Load from localStorage on mount and when storageKey changes
+  useEffect(() => {
+    setState(readBellStorage(storageKey));
+    setLoaded(true);
+  }, [storageKey]);
+
+  const updateState = (updater: (prev: StoredBellState) => StoredBellState) => {
+    setState((prev) => {
+      const next = updater(prev);
+      writeBellStorage(storageKey, next);
+      return next;
+    });
+  };
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -113,53 +161,58 @@ export function BellMenu({ items, onOpen }: { items: BellItem[]; onOpen?: () => 
     };
   }, [open]);
 
-  // Filter out cleared items
-  const visibleItems = items.filter((i) => !clearedKeys.has(i.key));
+  // An item is considered cleared/dismissed if its current count <= cleared count recorded
+  const isCleared = (key: string, count: number) => {
+    const cleared = state.clearedCounts[key];
+    return cleared !== undefined && count <= cleared;
+  };
+
+  // An item is considered read if its current count <= read count recorded
+  const isRead = (key: string, count: number) => {
+    const read = state.readCounts[key];
+    return read !== undefined && count <= read;
+  };
+
+  const visibleItems = items.filter((i) => !isCleared(i.key, i.count));
   const pending = visibleItems.filter((i) => i.count > 0);
-  const unreadPending = pending.filter((i) => !readKeys.has(i.key));
-  // Badge count only includes unread + uncleaned items
-  const total = unreadPending.reduce((n, i) => n + i.count, 0);
+  const unreadPending = pending.filter((i) => !isRead(i.key, i.count));
+
+  // Badge count displays sum of unread pending counts (or 0 if none or loading)
+  const total = loaded ? unreadPending.reduce((n, i) => n + i.count, 0) : 0;
 
   const markAllRead = () => {
-    setReadKeys(new Set(pending.map((i) => i.key)));
+    updateState((prev) => {
+      const readCounts = { ...prev.readCounts };
+      for (const item of pending) {
+        readCounts[item.key] = item.count;
+      }
+      return { ...prev, readCounts };
+    });
   };
 
   const clearAll = () => {
-    setClearedKeys(new Set(items.map((i) => i.key)));
-    setReadKeys(new Set());
-  };
-
-  const markOneRead = (key: string) => {
-    setReadKeys((prev) => new Set([...prev, key]));
-  };
-
-  const clearOne = (key: string) => {
-    setClearedKeys((prev) => new Set([...prev, key]));
-  };
-
-  // When items refresh (new data), remove stale cleared/read keys that no longer exist
-  // and un-clear items that have a new (higher) count
-  const prevItemsRef = useRef<BellItem[]>([]);
-  useEffect(() => {
-    const prevMap = new Map(prevItemsRef.current.map((i) => [i.key, i]));
-    // If an item reappears with a different (higher) count, un-clear and un-read it
-    for (const item of items) {
-      const prev = prevMap.get(item.key);
-      if (prev && item.count > prev.count) {
-        setClearedKeys((s) => {
-          const next = new Set(s);
-          next.delete(item.key);
-          return next;
-        });
-        setReadKeys((s) => {
-          const next = new Set(s);
-          next.delete(item.key);
-          return next;
-        });
+    updateState((prev) => {
+      const clearedCounts = { ...prev.clearedCounts };
+      for (const item of items) {
+        clearedCounts[item.key] = item.count;
       }
-    }
-    prevItemsRef.current = items;
-  }, [items]);
+      return { ...prev, clearedCounts };
+    });
+  };
+
+  const markOneRead = (key: string, count: number) => {
+    updateState((prev) => ({
+      ...prev,
+      readCounts: { ...prev.readCounts, [key]: count },
+    }));
+  };
+
+  const clearOne = (key: string, count: number) => {
+    updateState((prev) => ({
+      ...prev,
+      clearedCounts: { ...prev.clearedCounts, [key]: count },
+    }));
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -225,22 +278,22 @@ export function BellMenu({ items, onOpen }: { items: BellItem[]; onOpen?: () => 
           {pending.length > 0 ? (
             <ul className="max-h-80 overflow-y-auto py-1">
               {pending.map(({ key, Icon, label, count, href }) => {
-                const isRead = readKeys.has(key);
+                const read = isRead(key, count);
                 return (
                   <li key={key} className="group/item relative">
                     <Link
                       href={href}
                       onClick={() => {
-                        markOneRead(key);
+                        markOneRead(key, count);
                         setOpen(false);
                       }}
                       className={`flex items-center gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-[var(--chip-bg)] ${
-                        isRead ? "text-[var(--muted)]" : "text-[var(--foreground)]"
+                        read ? "text-[var(--muted)]" : "text-[var(--foreground)]"
                       }`}
                     >
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                          isRead
+                          read
                             ? "bg-[var(--chip-bg)] text-[var(--muted)]"
                             : "bg-[var(--red-tint)] text-[var(--red-active)]"
                         }`}
@@ -249,13 +302,13 @@ export function BellMenu({ items, onOpen }: { items: BellItem[]; onOpen?: () => 
                       </span>
                       <span className="flex-1">
                         {label}
-                        {!isRead ? (
+                        {!read ? (
                           <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--red)]" aria-label="Unread" />
                         ) : null}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          isRead ? "bg-[var(--chip-bg)] text-[var(--muted)]" : "bg-[var(--chip-bg)]"
+                          read ? "bg-[var(--chip-bg)] text-[var(--muted)]" : "bg-[var(--chip-bg)]"
                         }`}
                       >
                         {count}
@@ -263,13 +316,13 @@ export function BellMenu({ items, onOpen }: { items: BellItem[]; onOpen?: () => 
                     </Link>
                     {/* Per-item action buttons on hover */}
                     <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100">
-                      {!isRead ? (
+                      {!read ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            markOneRead(key);
+                            markOneRead(key, count);
                           }}
                           title="Mark as read"
                           className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--chip-bg)] hover:text-[var(--foreground)]"
@@ -282,7 +335,7 @@ export function BellMenu({ items, onOpen }: { items: BellItem[]; onOpen?: () => 
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          clearOne(key);
+                          clearOne(key, count);
                         }}
                         title="Dismiss"
                         className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--red-tint)] hover:text-[var(--red-active)]"

@@ -107,3 +107,9 @@ export function listResearchRuns(
   );
   return api<{ runs: ResearchRunSummary[] }>(`/v1/workspaces/${workspaceId}/research-runs${qs.size ? `?${qs}` : ""}`);
 }
+
+export function deleteResearchRun(workspaceId: string, id: string) {
+  return api<{ ok: boolean }>(`/v1/workspaces/${workspaceId}/research-runs/${id}`, {
+    method: "DELETE",
+  });
+}
