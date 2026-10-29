@@ -50,6 +50,20 @@
       "when": 1761170000000,
       "tag": "0006_add_platform_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1761180000000,
+      "tag": "0007_add_monitors_and_change_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1761190000000,
+      "tag": "0008_add_active_playbook_to_offers",
+      "breakpoints": true
     }
   ]
 }

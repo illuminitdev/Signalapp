@@ -8,3 +8,4 @@ export * from "./drafts.js";
 export * from "./suppressions.js";
 export * from "./audit.js";
 export * from "./ops.js";
+export * from "./monitors.js";

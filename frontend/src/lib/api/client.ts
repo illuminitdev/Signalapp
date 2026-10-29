@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export class ApiError extends Error {
   constructor(
@@ -29,14 +29,26 @@ export function clearApiCache() {
 }
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+  const needsDefaultBody =
+    options.body === undefined && ["POST", "PUT", "PATCH"].includes(method);
+  const body = needsDefaultBody ? "{}" : options.body;
+  const hasBody = body !== undefined && body !== null;
+
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> ?? {}),
+  };
+
+  // Only send content-type: application/json if there is an actual payload body
+  if (hasBody && !headers["content-type"]) {
+    headers["content-type"] = "application/json";
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: "include",
-    headers: {
-      // Fastify rejects a bodyless request that declares a JSON content-type (e.g. DELETE)
-      ...(options.body != null ? { "content-type": "application/json" } : {}),
-      ...(options.headers ?? {}),
-    },
+    body,
+    headers,
   });
 
   const text = await res.text();
@@ -59,21 +71,50 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     clearApiCache();
     return request<T>(path, options);
   }
-  if (NEVER_CACHE.some((re) => re.test(path))) return request<T>(path, options);
 
-  const hit = getCache.get(path);
-  if (hit && Date.now() - hit.at < GET_TTL_MS) return hit.data as T;
-  const pending = inFlight.get(path);
-  if (pending) return pending as Promise<T>;
+  const bypassCache = NEVER_CACHE.some((pattern) => pattern.test(path));
+  if (bypassCache) {
+    return request<T>(path, options);
+  }
 
-  const p = request<T>(path, options)
+  const cached = getCache.get(path);
+  if (cached && Date.now() - cached.at < GET_TTL_MS) {
+    return cached.data as T;
+  }
+
+  const running = inFlight.get(path);
+  if (running) {
+    return running as Promise<T>;
+  }
+
+  const promise = request<T>(path, options)
     .then((data) => {
       getCache.set(path, { data, at: Date.now() });
       return data;
     })
-    .finally(() => inFlight.delete(path));
-  inFlight.set(path, p);
-  return p;
+    .finally(() => {
+      inFlight.delete(path);
+    });
+
+  inFlight.set(path, promise);
+  return promise;
 }
 
-export { API_URL };
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Download failed: ${res.statusText}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

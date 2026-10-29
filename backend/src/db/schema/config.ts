@@ -12,6 +12,7 @@ export const offers = pgTable(
       .notNull()
       .references(() => workspaces.id),
     offering: text("offering").notNull().default(""),
+    activePlaybookTemplateKey: text("active_playbook_template_key").notNull().default("infrastructure"),
     buyerRolesJson: text("buyer_roles_json").notNull().default("[]"),
     industriesJson: text("industries_json").notNull().default("[]"),
     companySizesJson: text("company_sizes_json").notNull().default("[]"),

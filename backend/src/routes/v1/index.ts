@@ -16,6 +16,7 @@ import { suppressionRoutes } from "./suppressions.js";
 import { evidenceRoutes } from "./evidence.js";
 import { platformRoutes } from "./platform.js";
 import { companyWorkspaceRoutes } from "./companyWorkspaces.js";
+import { monitorsRoutes } from "./monitors.js";
 
 export async function v1Routes(app: FastifyInstance) {
   await authRoutes(app);
@@ -35,4 +36,5 @@ export async function v1Routes(app: FastifyInstance) {
   await draftRoutes(app);
   await outcomeRoutes(app);
   await platformRoutes(app);
+  await monitorsRoutes(app);
 }
