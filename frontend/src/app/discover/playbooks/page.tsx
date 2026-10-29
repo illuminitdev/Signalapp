@@ -218,7 +218,7 @@ function Playbooks({ workspaceId }: { workspaceId: string }) {
           </p>
 
           <div className="pt-2">
-            <Link href="/researcher/search">
+            <Link href="/discover/search">
               <Button variant="secondary" className="text-sm font-medium">
                 Find sample matches →
               </Button>

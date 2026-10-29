@@ -73,7 +73,7 @@ function Feed({ workspaceId }: { workspaceId: string }) {
         title="Reasons to start a conversation"
         description="Researched accounts ranked by fit, recency and evidence quality. Scores help you prioritise; they are not purchase probabilities."
         actions={
-          <Link href="/researcher/search">
+          <Link href="/discover/search">
             <Button variant="primary">Find prospects</Button>
           </Link>
         }
@@ -135,6 +135,7 @@ function Feed({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-export default function DiscoverPage() {
+export default function FeedPage() {
   return <RequireCap cap="discover">{(workspaceId) => <Feed workspaceId={workspaceId} />}</RequireCap>;
 }
+

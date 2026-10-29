@@ -52,10 +52,11 @@ function AcceptanceQueue({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-export default function AcceptancePage() {
+export default function SalesAcceptancePage() {
   return (
     <RequireCap anyOf={["accept", "submit_review"]}>
       {(workspaceId) => <AcceptanceQueue workspaceId={workspaceId} />}
     </RequireCap>
   );
 }
+

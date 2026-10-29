@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Field, FormError, FormNotice, inputClass } from "@/components/ui/Field";
+import { Field, FormError, FormNotice } from "@/components/ui/Field";
 import { changePassword, me, type User } from "@/lib/auth/session";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 

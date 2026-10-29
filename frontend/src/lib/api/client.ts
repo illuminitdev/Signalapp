@@ -12,12 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Short-lived cache for GET requests so moving between sections is instant.
- * Identical in-flight GETs share one request. Any write clears the cache, and
- * endpoints that report live progress are never cached.
- */
-const GET_TTL_MS = 15_000;
+const GET_TTL_MS = 60_000;
 const NEVER_CACHE = [
   /^\/v1\/auth\//,
   /^\/v1\/research-runs\//,

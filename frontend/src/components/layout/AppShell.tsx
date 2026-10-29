@@ -51,11 +51,11 @@ const SECTIONS: Section[] = [
     key: "discover",
     label: "Discover",
     Icon: Compass,
-    prefix: "/researcher",
+    prefix: "/discover",
     items: [
-      { href: "/researcher", label: "Opportunity feed", exact: true, visible: (can) => can("discover") },
-      { href: "/researcher/search", label: "Search", visible: (can) => can("discover") },
-      { href: "/researcher/playbooks", label: "Playbooks", visible: (can) => can("discover") },
+      { href: "/discover/feed", label: "Opportunity feed", visible: (can) => can("discover") },
+      { href: "/discover/search", label: "Search", visible: (can) => can("discover") },
+      { href: "/discover/playbooks", label: "Playbooks", visible: (can) => can("discover") },
     ],
   },
   {
@@ -64,11 +64,10 @@ const SECTIONS: Section[] = [
     Icon: Building2,
     prefix: "/accounts",
     items: [
-      { href: "/accounts", label: "Watchlist & imports", exact: true, visible: (can) => can("view_accounts") },
+      { href: "/accounts/watchlist", label: "Watchlist & imports", visible: (can) => can("view_accounts") },
       {
-        href: "/sales-reviewer",
+        href: "/accounts/sales-acceptance",
         label: "Sales acceptance",
-       
         visible: (can) => can("accept") || can("submit_review"),
       },
       { href: "/accounts/pipeline", label: "Pipeline", visible: (can) => can("view_accounts") },
@@ -79,10 +78,10 @@ const SECTIONS: Section[] = [
     key: "outreach",
     label: "Outreach",
     Icon: Send,
-    prefix: "/sdr",
+    prefix: "/outreach",
     items: [
-      { href: "/sdr", label: "Tasks", exact: true, visible: (can) => can("view_tasks") },
-      { href: "/sdr/drafts", label: "Drafts", visible: (can) => can("view_drafts") },
+      { href: "/outreach/tasks", label: "Tasks", visible: (can) => can("view_tasks") },
+      { href: "/outreach/drafts", label: "Drafts", visible: (can) => can("view_drafts") },
     ],
   },
   {
@@ -98,15 +97,15 @@ const SECTIONS: Section[] = [
     key: "members",
     label: "Members",
     Icon: Users,
-    prefix: "/tenant-admin/members",
-    items: [{ href: "/tenant-admin/members", label: "Members", visible: (can) => can("manage_membership") }],
+    prefix: "/members",
+    items: [{ href: "/members", label: "Members", visible: (can) => can("manage_membership") }],
   },
   {
     key: "workspaces",
     label: "Workspaces",
     Icon: Layers,
-    prefix: "/tenant-admin/workspaces",
-    items: [{ href: "/tenant-admin/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
+    prefix: "/workspaces",
+    items: [{ href: "/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
   },
   {
     key: "settings",
@@ -195,7 +194,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onChange={(e) => {
                     selectWorkspace(e.target.value);
                     // The portal redirects to the first view this role can use there
-                    router.push("/researcher");
+                    router.push("/discover/feed");
                   }}
                 >
                   {workspaces.map((w) => (
@@ -219,7 +218,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.key}
                 href={item.items[0]!.href}
-                prefetch
+                prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={`group relative flex h-10 items-center gap-3 rounded-lg px-3 text-[13.5px] font-medium transition-colors ${
                   active

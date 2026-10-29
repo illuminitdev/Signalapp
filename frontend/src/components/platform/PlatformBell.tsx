@@ -48,5 +48,5 @@ export function PlatformBell() {
     return () => clearInterval(t);
   }, [load]);
 
-  return <BellMenu items={items} onOpen={() => void load()} />;
+  return <BellMenu storageKey="platform" items={items} onOpen={() => void load()} />;
 }

@@ -21,6 +21,7 @@ export function SubNav({ items }: { items: SubNavItem[] }) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             className={`rounded-[7px] px-3 py-1.5 text-sm font-medium ${
               active
                 ? "bg-[var(--red-tint)] text-[var(--red-active)]"

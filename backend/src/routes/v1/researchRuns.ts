@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../../db/client.js";
-import { accounts, offers, playbookVersions, researchRuns } from "../../db/schema/index.js";
+import { accounts, evidence, offers, playbookVersions, providerUsage, researchRuns } from "../../db/schema/index.js";
 import { authenticateRequired } from "../../middleware/authenticate.js";
 import {
   assertAccountReadable,
@@ -318,6 +318,42 @@ export async function researchRunRoutes(app: FastifyInstance) {
           completedAt: run.completedAt,
         },
       };
+    },
+  );
+
+  app.delete(
+    "/v1/workspaces/:workspaceId/research-runs/:id",
+    { preHandler: authenticateRequired },
+    async (req) => {
+      const { workspaceId, id } = req.params as { workspaceId: string; id: string };
+      const m = await loadMembership(req, workspaceId);
+      requireCap(m, "discover");
+      const db = getDb();
+      const [existing] = await db
+        .select()
+        .from(researchRuns)
+        .where(
+          and(
+            eq(researchRuns.id, id),
+            eq(researchRuns.workspaceId, m.workspaceId),
+            eq(researchRuns.tenantId, m.tenantId),
+          ),
+        )
+        .limit(1);
+      if (!existing) throw notFound("Research run not found");
+
+      await db.update(evidence).set({ researchRunId: null }).where(eq(evidence.researchRunId, id));
+      await db.update(providerUsage).set({ researchRunId: null }).where(eq(providerUsage.researchRunId, id));
+      await db
+        .delete(researchRuns)
+        .where(
+          and(
+            eq(researchRuns.id, id),
+            eq(researchRuns.workspaceId, m.workspaceId),
+            eq(researchRuns.tenantId, m.tenantId),
+          ),
+        );
+      return { ok: true };
     },
   );
 }
