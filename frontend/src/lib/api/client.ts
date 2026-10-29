@@ -33,7 +33,8 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
     ...options,
     credentials: "include",
     headers: {
-      "content-type": "application/json",
+      // Fastify rejects a bodyless request that declares a JSON content-type (e.g. DELETE)
+      ...(options.body != null ? { "content-type": "application/json" } : {}),
       ...(options.headers ?? {}),
     },
   });

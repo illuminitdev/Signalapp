@@ -6,7 +6,7 @@ import { Button } from "./Button";
 
 export const PAGE_SIZE = 10;
 
-export function usePagination<T>(items: T[], pageSize = PAGE_SIZE) {
+export function usePagination<T>(items: T[], pageSize = PAGE_SIZE, alwaysShow = false) {
   const [page, setPage] = useState(1);
   // A search or filter changes the list size: start again from the first page
   const [seenLength, setSeenLength] = useState(items.length);
@@ -36,7 +36,7 @@ export function usePagination<T>(items: T[], pageSize = PAGE_SIZE) {
     pageItems: items.slice(start, start + pageSize),
     topRef: topRef as React.RefObject<never>,
     pager:
-      items.length > pageSize ? (
+      (alwaysShow ? items.length > 0 : items.length > pageSize) ? (
         <Pagination
           page={current}
           pages={pages}

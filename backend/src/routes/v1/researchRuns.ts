@@ -191,7 +191,7 @@ export async function researchRunRoutes(app: FastifyInstance) {
         .object({
           mode: z.enum(["account", "discovery"]).optional(),
           accountId: z.string().optional(),
-          limit: z.coerce.number().int().min(1).max(50).default(10),
+          limit: z.coerce.number().int().min(1).max(200).default(10),
         })
         .parse(req.query);
       if (q.accountId) await assertAccountReadable(m, q.accountId);

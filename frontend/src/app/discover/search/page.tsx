@@ -61,15 +61,16 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pageSize, setPageSize] = useState(10);
-  const recentPages = usePagination(recent, pageSize);
+  const recentPages = usePagination(recent, pageSize, true);
 
   const loadRecent = useCallback(async () => {
     try {
-      const { runs } = await listResearchRuns(workspaceId, { mode: "discovery", limit: 100 });
+      const { runs } = await listResearchRuns(workspaceId, { mode: "discovery", limit: 50 });
       setRecent(runs);
       // Reopen the search viewed last, or else the newest one
       setRunId((current) => (current && runs.some((r) => r.id === current) ? current : (runs[0]?.id ?? null)));
-    } catch {
+    } catch (e) {
+      console.error("Failed to load recent searches:", e);
       setRecent([]);
     }
   }, [workspaceId, setRunId]);
@@ -319,15 +320,15 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
         <DiscoveryResults rows={found.filter((r) => !makeExclusionMatcher(offer?.exclusions ?? [])(r))} runId={runId} workspaceId={workspaceId} canExport={can("export")} />
       ) : null}
 
-      {recent.length > 0 ? (
-        <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
-            <div>
-              <h2 className="text-[15px] font-semibold text-[var(--foreground)]">Recent searches</h2>
-              <p className="text-xs text-[var(--muted)]">
-                {recent.length} saved search{recent.length === 1 ? "" : "es"}
-              </p>
-            </div>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[var(--foreground)]">Recent searches</h2>
+            <p className="text-xs text-[var(--muted)]">
+              {recent.length} saved search{recent.length === 1 ? "" : "es"}
+            </p>
+          </div>
+          {recent.length > 0 ? (
             <div className="flex items-center gap-2">
               <label htmlFor="recent-pagesize" className="text-xs text-[var(--muted)]">
                 Show:
@@ -344,55 +345,72 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
                 <option value={50}>50 per page</option>
               </select>
             </div>
-          </div>
-          <ul className="divide-y divide-[var(--line)]">
-            {recentPages.pageItems.map((r) => (
-              <li key={r.id} className="group relative flex items-center">
-                <button
-                  type="button"
-                  aria-current={r.id === runId ? "true" : undefined}
-                  onClick={() => {
-                    setFound([]);
-                    setRunId(r.id);
-                  }}
-                  className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-md py-2.5 pl-2 pr-10 text-left text-sm transition-colors hover:bg-[var(--chip-bg)] ${
-                    r.id === runId ? "bg-[var(--red-tint)]" : ""
+          ) : null}
+        </div>
+        {recent.length === 0 ? (
+          <p className="py-6 text-center text-sm text-[var(--muted)]">No recent searches found for this workspace.</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-[var(--line)]">
+              {recentPages.pageItems.map((r) => (
+                <li
+                  key={r.id}
+                  className={`flex items-center gap-2 rounded-lg p-1 transition-colors ${
+                    r.id === runId ? "bg-[var(--red-tint)]" : "hover:bg-[var(--chip-bg)]"
                   }`}
                 >
-                  <span className="min-w-0 flex-1 truncate">{r.brief ?? r.query}</span>
-                  <span className="flex shrink-0 items-center gap-2 text-xs text-[var(--muted)]">
-                    {r.companies != null ? `${r.companies} ${r.companies === 1 ? "company" : "companies"}` : <StatusBadge status={r.status} />}
-                    <span>{formatDate(r.createdAt)}</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Delete search"
-                  title="Delete search"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!confirm("Delete this recent search?")) return;
-                    try {
-                      await deleteResearchRun(workspaceId, r.id);
-                      setRecent((prev) => prev.filter((item) => item.id !== r.id));
-                      if (runId === r.id) {
-                        setRunId(null);
-                        setFound([]);
+                  <button
+                    type="button"
+                    aria-current={r.id === runId ? "true" : undefined}
+                    onClick={() => {
+                      setFound([]);
+                      setRunId(r.id);
+                    }}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-3 px-2 py-2 text-left text-sm"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium text-[var(--foreground)]">
+                      {r.brief ?? r.query}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2.5 text-xs text-[var(--muted)]">
+                      {r.companies != null ? (
+                        <span>
+                          {r.companies} {r.companies === 1 ? "company" : "companies"}
+                        </span>
+                      ) : (
+                        <StatusBadge status={r.status} />
+                      )}
+                      <span>{formatDate(r.createdAt)}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete this search"
+                    title="Delete this search"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!confirm("Are you sure you want to delete this search?")) return;
+                      try {
+                        await deleteResearchRun(workspaceId, r.id);
+                        setRecent((prev) => prev.filter((item) => item.id !== r.id));
+                        if (runId === r.id) {
+                          setRunId(null);
+                          setFound([]);
+                        }
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Could not delete search");
                       }
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "Could not delete search");
-                    }
-                  }}
-                  className="absolute right-2 flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] opacity-60 transition-all hover:bg-[var(--red-tint)] hover:text-[var(--red-active)] hover:opacity-100 group-hover:opacity-100"
-                >
-                  <Trash2 size={14} strokeWidth={1.75} aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
-          {recentPages.pager}
-        </Card>
-      ) : null}
+                    }}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--line)] bg-white text-[var(--muted)] transition-colors hover:border-[var(--red)] hover:bg-[var(--red-tint)] hover:text-[var(--red-active)]"
+                  >
+                    <Trash2 size={15} strokeWidth={1.75} aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {recentPages.pager}
+          </>
+        )}
+      </Card>
     </div>
   );
 }
