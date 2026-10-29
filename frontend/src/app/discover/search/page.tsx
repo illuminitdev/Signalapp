@@ -18,12 +18,21 @@ import {
 } from "@/lib/api/research";
 import { formatDate } from "@/lib/utils/dates";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { getOffer, type Playbook } from "@/lib/api/settings";
+import { getOffer, type Offer, type Playbook } from "@/lib/api/settings";
+import { makeExclusionMatcher } from "@/lib/utils/exclusions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, FormError, humanize, inputClass } from "@/components/ui/Field";
 
 const SIGNALS = ["expansion", "infra_hiring", "refresh", "compute", "procurement"];
+const SIGNAL_LABELS: Record<string, string> = {
+  expansion: "Expansion",
+  infra_hiring: "Hiring demand",
+  refresh: "Hardware refresh",
+  compute: "Compute demand",
+  procurement: "Procurement",
+};
+const signalLabel = (s: string) => SIGNAL_LABELS[s] ?? humanize(s);
 const split = (s: string) =>
   s
     .split(",")
@@ -42,6 +51,8 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
   const [budget, setBudget] = usePersistentState(`${workspaceId}:search:budget`, 5);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [playbookId, setPlaybookId] = useState("");
+  const [offer, setOffer] = useState<Offer | null>(null);
+  const [editing, setEditing] = useState(false);
   const [runId, setRunId] = usePersistentState<string | null>(`${workspaceId}:search:run`, null);
   const [recent, setRecent] = useState<ResearchRunSummary[]>([]);
   const [found, setFound] = useState<DiscoveryRow[]>([]);
@@ -67,18 +78,75 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     void getOffer(workspaceId)
       .then((r) => {
+        setOffer(r.offer);
         setPlaybooks(r.playbooks);
         setPlaybookId(r.playbooks.find((p) => p.templateKey === "infrastructure")?.id ?? r.playbooks[0]?.id ?? "");
       })
       .catch(() => setPlaybooks([]));
   }, [workspaceId]);
 
+  // What will actually run: confirmed overrides, else the workspace targeting defaults
+  const playbook = playbooks.find((p) => p.id === playbookId);
+  const territory = countries ? split(countries) : (offer?.territory ?? []);
+  const activeSignals = signals.length ? signals : (playbook?.rules.signals ?? []);
+  const activeWindow = windowDays ? Number(windowDays) : (offer?.eventWindowDays ?? 90);
+  const chips = [
+    ...territory,
+    ...(industries ? split(industries) : []),
+    ...activeSignals.map(signalLabel),
+    `Last ${activeWindow} days`,
+  ];
+
+  async function checkBrief() {
+    setBusy(true);
+    setError(null);
+    try {
+      const p = await parseBrief(workspaceId, brief);
+      setParsed(p);
+      setCountries(p.structured.countries.join(", "));
+      setIndustries(p.structured.industries.join(", "));
+      setSignals(p.structured.signalKinds);
+      setWindowDays(p.structured.eventWindowDays ? String(p.structured.eventWindowDays) : "");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not read the brief");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function findOpportunities() {
+    setBusy(true);
+    setError(null);
+    setFound([]);
+    try {
+      const { researchRunId } = await startResearchRun(workspaceId, {
+        mode: "discovery",
+        query: brief.trim() || chips.join(" · "),
+        brief: brief.trim() || undefined,
+        budget,
+        playbookVersionId: playbookId || undefined,
+        filters: {
+          countries: countries ? split(countries).map((c) => c.toUpperCase()) : undefined,
+          industries: industries ? split(industries) : undefined,
+          signalKinds: signals.length ? signals : undefined,
+          eventWindowDays: windowDays ? Number(windowDays) : undefined,
+        },
+      });
+      setRunId(researchRunId);
+      void loadRecent();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start discovery");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Discover"
+        eyebrow="Account discovery"
         title="Find prospects"
-        description="Describe who you're looking for. You'll see how the brief was understood — and anything we can't filter on — before anything runs or uses research units."
+        description="Run explicit criteria against the pilot dataset."
       />
 
       <Card accent className="space-y-4">
@@ -91,32 +159,33 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
             placeholder="e.g. UK banks and insurers announcing data centre expansion or server refresh in the last 3 months"
           />
         </Field>
-        <Button
-          disabled={busy || !brief.trim()}
-          onClick={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              const p = await parseBrief(workspaceId, brief);
-              setParsed(p);
-              setCountries(p.structured.countries.join(", "));
-              setIndustries(p.structured.industries.join(", "));
-              setSignals(p.structured.signalKinds);
-              setWindowDays(p.structured.eventWindowDays ? String(p.structured.eventWindowDays) : "");
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "Could not read the brief");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Check how the brief is understood
-        </Button>
+        <p className="text-xs text-[var(--muted)]">
+          Free text is retained as a brief. Matching uses your structured territory, playbook, event age and exclusions
+          below; live language interpretation is not connected.
+        </p>
 
-        {parsed ? (
+        {chips.length ? (
+          <ul className="flex flex-wrap gap-2" aria-label="Current targeting">
+            {chips.map((c) => (
+              <li
+                key={c}
+                className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-3.5 py-1.5 text-sm text-[var(--foreground)]"
+              >
+                {c}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {editing ? (
           <div className="space-y-4 border-t border-[var(--line)] pt-4">
-            <h2 className="text-[15px]">Confirm or correct the search</h2>
-            {parsed.unsupported.length ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[15px]">Targeting</h2>
+              <Button variant="quiet" disabled={busy || !brief.trim()} onClick={() => void checkBrief()}>
+                Fill from brief
+              </Button>
+            </div>
+            {parsed?.unsupported.length ? (
               <div role="alert" className="rounded-[7px] bg-[var(--badge-amber-bg)] p-3 text-sm text-[var(--badge-amber-fg)]">
                 <p className="font-semibold">These parts of the brief can&apos;t be applied as filters:</p>
                 <ul className="mt-1 list-disc pl-5">
@@ -211,45 +280,27 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
                 </span>
               </div>
               <p id="result-count-help" className="mt-1.5 text-xs text-[var(--muted)]">
-                1 result = 1 unit. If fewer results are found, the unused units are given back. This month:{" "}
-                {parsed.usage.usedMonthly} of {parsed.usage.quotaMonthly} units used ·{" "}
-                {Math.max(0, parsed.usage.quotaMonthly - parsed.usage.usedMonthly)} left.
+                1 result = 1 unit. If fewer results are found, the unused units are given back.
+                {parsed ? (
+                  <>
+                    {" "}
+                    This month: {parsed.usage.usedMonthly} of {parsed.usage.quotaMonthly} units used ·{" "}
+                    {Math.max(0, parsed.usage.quotaMonthly - parsed.usage.usedMonthly)} left.
+                  </>
+                ) : null}
               </p>
             </div>
-            <Button
-              variant="primary"
-              disabled={busy || !can("discover")}
-              onClick={async () => {
-                setBusy(true);
-                setError(null);
-                setFound([]);
-                try {
-                  const { researchRunId } = await startResearchRun(workspaceId, {
-                    mode: "discovery",
-                    query: brief,
-                    brief,
-                    budget,
-                    playbookVersionId: playbookId || undefined,
-                    filters: {
-                      countries: countries ? split(countries).map((c) => c.toUpperCase()) : undefined,
-                      industries: industries ? split(industries) : undefined,
-                      signalKinds: signals,
-                      eventWindowDays: windowDays ? Number(windowDays) : undefined,
-                    },
-                  });
-                  setRunId(researchRunId);
-                  void loadRecent();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "Could not start discovery");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Find opportunities
-            </Button>
           </div>
         ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <Button onClick={() => setEditing((v) => !v)} aria-expanded={editing}>
+            {editing ? "Hide targeting" : "Edit targeting"}
+          </Button>
+          <Button variant="primary" disabled={busy || !can("discover")} onClick={() => void findOpportunities()}>
+            {busy ? "Starting…" : "Find sample opportunities"}
+          </Button>
+        </div>
         <FormError message={error} />
       </Card>
 
@@ -262,7 +313,7 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
         }}
       />
       {runId && found.length ? (
-        <DiscoveryResults rows={found} runId={runId} workspaceId={workspaceId} canExport={can("export")} />
+        <DiscoveryResults rows={found.filter((r) => !makeExclusionMatcher(offer?.exclusions ?? [])(r))} runId={runId} workspaceId={workspaceId} canExport={can("export")} />
       ) : null}
 
       {recent.length > 1 ? (

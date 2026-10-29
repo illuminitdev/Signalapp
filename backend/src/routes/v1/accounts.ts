@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../../db/client.js";
 import {
@@ -10,6 +10,7 @@ import {
   signals,
   sources,
   acceptanceDecisions,
+  tasks,
   users,
 } from "../../db/schema/index.js";
 import { acceptanceStates } from "../../db/schema/workflow.js";
@@ -52,11 +53,80 @@ export async function accountRoutes(app: FastifyInstance) {
       if (q.ownerUserId) where.push(eq(accounts.ownerUserId, q.ownerUserId));
       const db = getDb();
       const rows = await db
-        .select()
+        .select({
+          ...getTableColumns(accounts),
+          // An evidence gap = no source with an event date to anchor the signal in time
+          hasDatedEvidence: sql<boolean>`exists (select 1 from ${evidence} where ${evidence.accountId} = ${accounts.id} and ${evidence.eventDate} is not null)`,
+        })
         .from(accounts)
         .where(and(...where))
         .orderBy(desc(accounts.updatedAt));
       return { accounts: rows };
+    },
+  );
+
+  /** One row per account for the team pipeline: stage, owner, next action and when it is due */
+  app.get(
+    "/v1/workspaces/:workspaceId/pipeline",
+    { preHandler: authenticateRequired },
+    async (req) => {
+      const { workspaceId } = req.params as { workspaceId: string };
+      const m = await loadMembership(req, workspaceId);
+      requireCap(m, "view_accounts");
+      const db = getDb();
+      const rows = await db
+        .select({
+          id: accounts.id,
+          name: accounts.name,
+          acceptanceState: accounts.acceptanceState,
+          ownerUserId: accounts.ownerUserId,
+          ownerName: users.name,
+        })
+        .from(accounts)
+        .leftJoin(users, eq(users.id, accounts.ownerUserId))
+        .where(accountScope(m))
+        .orderBy(desc(accounts.updatedAt));
+      const ids = rows.map((r) => r.id);
+      if (!ids.length) return { rows: [] };
+
+      // Next action: the open task due soonest, else the next action recorded with the latest decision
+      const openTasks = await db
+        .select({
+          accountId: tasks.accountId,
+          type: tasks.type,
+          instruction: tasks.instruction,
+          dueAt: tasks.dueAt,
+        })
+        .from(tasks)
+        .where(and(inArray(tasks.accountId, ids), inArray(tasks.status, ["open", "in_progress"])))
+        .orderBy(sql`${tasks.dueAt} asc nulls last`, asc(tasks.createdAt));
+      const decisions = await db
+        .select({ accountId: acceptanceDecisions.accountId, nextAction: acceptanceDecisions.nextAction })
+        .from(acceptanceDecisions)
+        .where(and(inArray(acceptanceDecisions.accountId, ids), isNotNull(acceptanceDecisions.nextAction)))
+        .orderBy(desc(acceptanceDecisions.createdAt));
+
+      const taskByAccount = new Map<string, (typeof openTasks)[number]>();
+      for (const t of openTasks) if (!taskByAccount.has(t.accountId)) taskByAccount.set(t.accountId, t);
+      const decisionByAccount = new Map<string, string>();
+      for (const d of decisions) {
+        if (d.nextAction && !decisionByAccount.has(d.accountId)) decisionByAccount.set(d.accountId, d.nextAction);
+      }
+
+      return {
+        rows: rows.map((r) => {
+          const task = taskByAccount.get(r.id);
+          return {
+            accountId: r.id,
+            name: r.name,
+            acceptanceState: r.acceptanceState,
+            owner: r.ownerUserId ? { id: r.ownerUserId, name: r.ownerName ?? "Unknown" } : null,
+            nextAction: task ? task.instruction?.trim() || null : (decisionByAccount.get(r.id) ?? null),
+            taskType: task?.type ?? null,
+            dueAt: task?.dueAt ?? null,
+          };
+        }),
+      };
     },
   );
 

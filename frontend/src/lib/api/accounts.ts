@@ -12,6 +12,8 @@ export type Account = {
   ownerUserId: string | null;
   version: number;
   updatedAt: string;
+  /** Set by the account list: at least one evidence item carries an event date */
+  hasDatedEvidence?: boolean;
 };
 
 export type EvidenceItem = {
@@ -99,6 +101,20 @@ export function listAccounts(
   return api<{ accounts: Account[] }>(
     `/v1/workspaces/${workspaceId}/accounts${qs.size ? `?${qs}` : ""}`,
   );
+}
+
+export type PipelineRow = {
+  accountId: string;
+  name: string;
+  acceptanceState: string;
+  owner: { id: string; name: string } | null;
+  nextAction: string | null;
+  taskType: "research" | "review" | "call" | "email" | "follow_up" | null;
+  dueAt: string | null;
+};
+
+export function getPipeline(workspaceId: string) {
+  return api<{ rows: PipelineRow[] }>(`/v1/workspaces/${workspaceId}/pipeline`);
 }
 
 export function createAccount(

@@ -82,6 +82,7 @@ export type Outcomes = {
     acceptanceRate: number | null;
     reviewerDecisionEvents: number;
     completedSdrActions: number;
+    openSdrTasks: number;
     cancelledSdrActions: number;
     partnerHandoffsPrepared: number;
     partnerHandoffsShared: number;
@@ -91,6 +92,7 @@ export type Outcomes = {
   };
   breakdowns: {
     activityByTaskType: Record<string, number>;
+    rejectionReasons: Record<string, number>;
     researchQuality: Record<string, number>;
   };
   notes: string[];

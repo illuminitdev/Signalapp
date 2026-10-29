@@ -51,6 +51,20 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
   const rejected = latestStates.filter((s) => s === "rejected").length;
   const decided = latest.size;
 
+  // Why accounts were rejected, by the reason category on their latest decision
+  const rejectionReasons: Record<string, number> = {};
+  for (const d of latest.values()) {
+    if (d.toState !== "rejected") continue;
+    const key = d.reasonCategory || "unspecified";
+    rejectionReasons[key] = (rejectionReasons[key] ?? 0) + 1;
+  }
+
+  // Current workload, not cohort-bound: tasks still open right now
+  const openTasks = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(and(scope(tasks), inArray(tasks.status, ["open", "in_progress"])));
+
   const reviewedEvidence = await db
     .select({ accountId: evidence.accountId })
     .from(evidence)
@@ -113,6 +127,7 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
       acceptanceRate: decided === 0 ? null : accepted / decided,
       reviewerDecisionEvents: decisions.length,
       completedSdrActions: completedActs.length,
+      openSdrTasks: openTasks.length,
       cancelledSdrActions: acts.filter((a) => a.kind === "task_cancelled").length,
       partnerHandoffsPrepared: handoffRows.length,
       partnerHandoffsShared: handoffRows.filter((h) => h.sharedAt).length,
@@ -123,6 +138,7 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
     },
     breakdowns: {
       activityByTaskType: activityByType,
+      rejectionReasons,
       researchQuality: {
         runsQueuedOrRunning: runs.filter((r) => ["queued", "running", "retrying"].includes(r.status)).length,
         runsCompleted: runs.filter((r) => r.status === "completed").length,

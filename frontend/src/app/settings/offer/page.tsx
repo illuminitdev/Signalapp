@@ -22,6 +22,25 @@ const list = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+/** Exclusions are one per line: company names can contain commas */
+const lines = (s: string) =>
+  s
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+const questionClass =
+  "mt-2.5 w-full rounded-[7px] border border-[var(--input-border)] bg-white px-4 py-3 text-[15px] font-normal text-[var(--foreground)]";
+
+function Question({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block text-[15px] font-semibold text-[var(--foreground)]">
+      {label}
+      {children}
+    </label>
+  );
+}
+
 function OfferSettings({ workspaceId }: { workspaceId: string }) {
   const [loaded, setLoaded] = useState(false);
   const [version, setVersion] = useState<number | undefined>();
@@ -63,7 +82,7 @@ function OfferSettings({ workspaceId }: { workspaceId: string }) {
             industries: o.industries.join(", "),
             companySizes: o.companySizes.join(", "),
             territory: o.territory.join(", "),
-            exclusions: o.exclusions.join(", "),
+            exclusions: o.exclusions.join("\n"),
             eventWindowDays: String(o.eventWindowDays),
             naturalLanguageBrief: o.naturalLanguageBrief ?? "",
           });
@@ -87,9 +106,9 @@ function OfferSettings({ workspaceId }: { workspaceId: string }) {
         title="Offer & targeting"
         description="What you sell and who to look for. Discovery and research use these as defaults; anything that can't be applied as a filter is listed rather than silently ignored."
       />
-      <Card accent>
+      <Card>
         <form
-          className="space-y-3"
+          className="space-y-6"
           onSubmit={async (e) => {
             e.preventDefault();
             setError(null);
@@ -97,27 +116,25 @@ function OfferSettings({ workspaceId }: { workspaceId: string }) {
             // Native `required` accepts "," or whitespace, which would save as an empty list
             const missing = (
               [
-                ["Offering", form.offering.trim()],
+                ["What do you sell?", form.offering.trim()],
+                ["Target buyer functions", list(form.buyerRoles).length],
                 ["Territory", list(form.territory).length],
-                ["Industries", list(form.industries).length],
-                ["Buyer roles", list(form.buyerRoles).length],
-                ["Event window", Number(form.eventWindowDays) > 0],
               ] as const
             )
               .filter(([, ok]) => !ok)
               .map(([name]) => name);
             if (missing.length) {
-              setError(`Please fill in: ${missing.join(", ")}.`);
+              setError(`Please answer: ${missing.join(", ")}`);
               return;
             }
             try {
               const res = await saveOffer(workspaceId, {
-                offering: form.offering,
+                offering: form.offering.trim(),
                 buyerRoles: list(form.buyerRoles),
                 industries: list(form.industries),
                 companySizes: list(form.companySizes),
                 territory: list(form.territory),
-                exclusions: list(form.exclusions),
+                exclusions: lines(form.exclusions),
                 eventWindowDays: Number(form.eventWindowDays) || 90,
                 naturalLanguageBrief: form.naturalLanguageBrief || undefined,
                 expectedVersion: version,
@@ -133,78 +150,90 @@ function OfferSettings({ workspaceId }: { workspaceId: string }) {
             }
           }}
         >
-          <p className="text-xs text-[var(--muted)]">
-            Fields marked <span className="text-[var(--red)]">*</span> are required.
-          </p>
-          <Field label="Offering" required>
-            <input
-              className={inputClass}
-              required
-              value={form.offering}
-              onChange={set("offering")}
-              placeholder="e.g. Enterprise servers and managed infrastructure"
-            />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Territory" required>
-              <input
-                className={inputClass}
-                required
-                value={form.territory}
-                onChange={set("territory")}
-                placeholder="e.g. United Kingdom, Ireland"
+          <div className="grid gap-x-6 gap-y-6 md:grid-cols-2">
+            <Question label="What do you sell?">
+              <textarea
+                className={questionClass}
+                rows={3}
+                value={form.offering}
+                onChange={set("offering")}
+                placeholder="e.g. Specialist technology recruitment"
               />
-            </Field>
-            <Field label="Industries" required>
-              <input
-                className={inputClass}
-                required
-                value={form.industries}
-                onChange={set("industries")}
-                placeholder="e.g. Financial Services, Healthcare"
-              />
-            </Field>
-            <Field label="Buyer roles" required>
-              <input
-                className={inputClass}
-                required
+            </Question>
+            <Question label="Target buyer functions">
+              <textarea
+                className={questionClass}
+                rows={3}
                 value={form.buyerRoles}
                 onChange={set("buyerRoles")}
-                placeholder="e.g. CIO, Head of Infrastructure"
+                placeholder="e.g. Hiring manager, talent acquisition, IT leadership"
               />
-            </Field>
-            <Field label="Company sizes (employees)">
-              <input className={inputClass} value={form.companySizes} onChange={set("companySizes")} placeholder="e.g. 200-1000, 1000+" />
-            </Field>
-            <Field label="Exclusions (domains to never return)">
-              <input className={inputClass} value={form.exclusions} onChange={set("exclusions")} placeholder="e.g. competitor.com, existingclient.co.uk" />
-            </Field>
-            <Field label="Event window (days, older = stale)" required>
+            </Question>
+            <Question label="Territory">
               <input
-                className={inputClass}
-                required
-                type="number"
-                min={1}
-                max={3650}
-                inputMode="numeric"
-                value={form.eventWindowDays}
-                onChange={set("eventWindowDays")}
-                placeholder="e.g. 90"
+                className={questionClass}
+                value={form.territory}
+                onChange={set("territory")}
+                placeholder="e.g. United States, United Kingdom"
               />
-            </Field>
+            </Question>
+            <Question label="Exclude account names (one per line)">
+              <textarea
+                className={questionClass}
+                rows={3}
+                value={form.exclusions}
+                onChange={set("exclusions")}
+                placeholder={"e.g. Existing Client Ltd\ncompetitor.com"}
+              />
+            </Question>
           </div>
-          <Field label="Natural-language brief">
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={form.naturalLanguageBrief}
-              onChange={set("naturalLanguageBrief")}
-              placeholder="e.g. UK banks and insurers expanding data centres or refreshing servers"
-            />
-          </Field>
+
+          <p className="rounded-[9px] bg-[var(--badge-blue-bg)] px-5 py-4 text-sm text-[var(--foreground)]">
+            Territory is matched by country. Exclusions apply to discovery and the opportunity feed: add a company name or
+            its website domain.
+          </p>
+
+          <details className="text-sm">
+            <summary className="cursor-pointer font-semibold text-[var(--foreground)]">More targeting options</summary>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="Industries">
+                <input
+                  className={inputClass}
+                  value={form.industries}
+                  onChange={set("industries")}
+                  placeholder="e.g. Financial Services, Healthcare"
+                />
+              </Field>
+              <Field label="Company sizes (employees)">
+                <input className={inputClass} value={form.companySizes} onChange={set("companySizes")} placeholder="e.g. 200-1000, 1000+" />
+              </Field>
+              <Field label="Event window (days, older = stale)">
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={1}
+                  max={3650}
+                  inputMode="numeric"
+                  value={form.eventWindowDays}
+                  onChange={set("eventWindowDays")}
+                  placeholder="90"
+                />
+              </Field>
+              <Field label="Natural-language brief" className="sm:col-span-2">
+                <textarea
+                  className={inputClass}
+                  rows={3}
+                  value={form.naturalLanguageBrief}
+                  onChange={set("naturalLanguageBrief")}
+                  placeholder="e.g. UK banks and insurers expanding data centres or refreshing servers"
+                />
+              </Field>
+            </div>
+          </details>
+
           <FormError message={error} />
           <FormNotice message={notice} />
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" className="px-5 py-2.5 text-[15px]">
             Save targeting
           </Button>
         </form>
