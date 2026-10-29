@@ -72,6 +72,7 @@ const SECTIONS: Section[] = [
         visible: (can) => can("accept") || can("submit_review"),
       },
       { href: "/accounts/pipeline", label: "Pipeline", visible: (can) => can("view_accounts") },
+      { href: "/accounts/monitors", label: "Monitors", visible: (can) => can("view_accounts") },
     ],
   },
   {

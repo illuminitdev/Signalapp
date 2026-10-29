@@ -147,6 +147,66 @@ export async function settingsRoutes(app: FastifyInstance) {
     },
   );
 
+  app.put(
+    "/v1/workspaces/:workspaceId/settings/active-playbook",
+    { preHandler: authenticateRequired },
+    async (req) => {
+      const { workspaceId } = req.params as { workspaceId: string };
+      const m = await loadMembership(req, workspaceId);
+      if (!hasCapability(m.role, "discover") && !hasCapability(m.role, "manage_settings")) {
+        throw forbidden("Missing capability: discover");
+      }
+      const body = z.object({
+        templateKey: z.string(),
+      }).parse(req.body ?? {});
+
+      const db = getDb();
+      await db
+        .update(offers)
+        .set({
+          activePlaybookTemplateKey: body.templateKey,
+          updatedAt: new Date(),
+        })
+        .where(eq(offers.workspaceId, workspaceId));
+
+      await writeAudit({
+        tenantId: m.tenantId,
+        workspaceId,
+        actorUserId: req.actor!.userId,
+        action: "settings.active_playbook.updated",
+        metadata: { templateKey: body.templateKey },
+      });
+
+      return { ok: true, activePlaybookTemplateKey: body.templateKey };
+    },
+  );
+
+  app.put(
+    "/v1/workspaces/:workspaceId/settings/event-window",
+    { preHandler: authenticateRequired },
+    async (req) => {
+      const { workspaceId } = req.params as { workspaceId: string };
+      const m = await loadMembership(req, workspaceId);
+      if (!hasCapability(m.role, "discover") && !hasCapability(m.role, "manage_settings")) {
+        throw forbidden("Missing capability: discover");
+      }
+      const body = z.object({
+        eventWindowDays: z.number().int().positive(),
+      }).parse(req.body ?? {});
+
+      const db = getDb();
+      await db
+        .update(offers)
+        .set({
+          eventWindowDays: body.eventWindowDays,
+          updatedAt: new Date(),
+        })
+        .where(eq(offers.workspaceId, workspaceId));
+
+      return { ok: true, eventWindowDays: body.eventWindowDays };
+    },
+  );
+
   app.get(
     "/v1/workspaces/:workspaceId/settings/acceptance-gates",
     { preHandler: authenticateRequired },

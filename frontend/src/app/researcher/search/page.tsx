@@ -25,6 +25,11 @@ import { Card } from "@/components/ui/Card";
 import { Field, FormError, humanize, inputClass } from "@/components/ui/Field";
 
 const SIGNALS = ["expansion", "infra_hiring", "refresh", "compute", "procurement"];
+const PLAYBOOK_DISPLAY_NAMES: Record<string, string> = {
+  infrastructure: "Infrastructure expansion",
+  recruitment: "Hiring demand",
+  managed_it: "Multi-site IT support",
+};
 const SIGNAL_LABELS: Record<string, string> = {
   expansion: "Expansion",
   infra_hiring: "Hiring demand",
@@ -80,7 +85,8 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
       .then((r) => {
         setOffer(r.offer);
         setPlaybooks(r.playbooks);
-        setPlaybookId(r.playbooks.find((p) => p.templateKey === "infrastructure")?.id ?? r.playbooks[0]?.id ?? "");
+        const activeKey = r.offer?.activePlaybookTemplateKey ?? "infrastructure";
+        setPlaybookId(r.playbooks.find((p) => p.templateKey === activeKey)?.id ?? r.playbooks[0]?.id ?? "");
       })
       .catch(() => setPlaybooks([]));
   }, [workspaceId]);
@@ -215,7 +221,7 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
                 <select className={inputClass} value={playbookId} onChange={(e) => setPlaybookId(e.target.value)}>
                   {playbooks.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} v{p.version}
+                      {(PLAYBOOK_DISPLAY_NAMES[p.templateKey] ?? p.name)} v{p.version}
                     </option>
                   ))}
                 </select>
@@ -352,3 +358,4 @@ function SearchView({ workspaceId }: { workspaceId: string }) {
 export default function SearchPage() {
   return <RequireCap cap="discover">{(workspaceId) => <SearchView workspaceId={workspaceId} />}</RequireCap>;
 }
+
