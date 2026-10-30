@@ -310,13 +310,17 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
         <div>
           <h2 className="text-lg font-bold text-[var(--foreground)]">Change history</h2>
           <p className="mt-0.5 text-sm text-[var(--muted)]">
-            Run a simulated check to populate the change feed.
+            Recent buying signals and market evidence discovered by your monitors.
           </p>
         </div>
 
         {changeEventsList.length === 0 ? (
           <div className="rounded-[8px] border border-dashed border-[var(--line)] p-6 text-center text-sm text-[var(--muted)]">
-            No change events recorded yet. Click &quot;Simulate change check&quot; above to populate the change feed.
+            {!monitorsList || monitorsList.length === 0
+              ? "No change events recorded yet. Add a monitor above to start tracking changes."
+              : monitorsList.some((m) => !m.isSimulation)
+              ? "No change events recorded yet. Click \"Check live changes\" above or wait for scheduled monitoring to populate the feed."
+              : "No change events recorded yet. Click \"Simulate change check\" above to populate the change feed."}
           </div>
         ) : (
           <div className="space-y-3">
