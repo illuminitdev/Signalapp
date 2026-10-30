@@ -33,6 +33,28 @@ function getRecipeSubtitle(recipeJson: string): string {
   }
 }
 
+function renderDetailWithLinks(detail: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = detail.split(urlRegex);
+
+  return parts.map((part, i) => {
+    if (part.match(/^https?:\/\//i)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[var(--red-active)] underline underline-offset-2 hover:opacity-80 break-all"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 function MonitorsView({ workspaceId }: { workspaceId: string }) {
   const [monitorsList, setMonitorsList] = useState<Monitor[] | null>(null);
   const [changeEventsList, setChangeEventsList] = useState<ChangeEvent[]>([]);
@@ -311,7 +333,9 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                       ) : null}
                     </div>
                     {c.detail ? (
-                      <p className="mt-1 text-sm text-[var(--muted)]">{c.detail}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+                        {renderDetailWithLinks(c.detail)}
+                      </p>
                     ) : null}
                   </div>
                   <span className="shrink-0 text-xs text-[var(--muted)]">
