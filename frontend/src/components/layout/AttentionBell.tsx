@@ -13,6 +13,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
+import { usePortal } from "../../hooks/usePortal";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { listAccounts } from "../../lib/api/accounts";
 import { listTasks } from "../../lib/api/tasks";
@@ -48,6 +49,7 @@ function writeBellStorage(key: string, data: StoredBellState) {
  */
 export function AttentionBell() {
   const { workspaceId, user, can } = useWorkspace();
+  const { href: portalHref } = usePortal();
   const [items, setItems] = useState<BellItem[]>([]);
 
   const load = useCallback(async () => {
@@ -81,7 +83,7 @@ export function AttentionBell() {
           Icon: RotateCcw,
           label: "Briefs returned for more research",
           count: r.accounts.length,
-          href: "/accounts/sales-acceptance",
+          href: "/accounts/qualify",
         })),
       );
     }
@@ -92,13 +94,14 @@ export function AttentionBell() {
           Icon: Inbox,
           label: "Handoffs waiting for you",
           count: r.handoffs.filter((h) => h.state === "shared").length,
-          href: "/partner",
+          href: "/shared",
         })),
       );
     }
     const results = await Promise.allSettled(jobs);
-    setItems(results.flatMap((r) => (r.status === "fulfilled" && r.value ? [r.value] : [])));
-  }, [workspaceId, user, can]);
+    // Every link opens the queue inside this member's own portal
+    setItems(results.flatMap((r) => (r.status === "fulfilled" && r.value ? [{ ...r.value, href: portalHref(r.value.href) }] : [])));
+  }, [workspaceId, user, can, portalHref]);
 
   // Load once, then refresh every minute and when the panel opens
   useEffect(() => {

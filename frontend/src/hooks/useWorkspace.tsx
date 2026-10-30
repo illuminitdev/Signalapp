@@ -140,3 +140,8 @@ export function useWorkspace() {
   }
   return ctx;
 }
+
+/** Signed-in user's id, or null outside the workspace portal (login, platform console). */
+export function useOptionalUserId(): string | null {
+  return useContext(WorkspaceContext)?.user?.id ?? null;
+}

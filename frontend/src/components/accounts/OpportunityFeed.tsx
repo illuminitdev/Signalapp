@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PortalLink as Link } from "@/components/layout/PortalLink";
 import type { Account } from "../../lib/api/accounts";
 import { StatusBadge } from "../common/StatusBadge";
 import { Badge } from "../ui/Badge";

@@ -2,155 +2,23 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Briefcase,
-  FileChartColumn,
-  ChevronsUpDown,
-  Compass,
-  Inbox,
-  Boxes,
-  LogOut,
-  Send,
-  Settings,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronsUpDown, Boxes, LogOut } from "lucide-react";
 import { logout } from "../../lib/auth/session";
-import { ROLE_LABELS, type Capability } from "../../lib/auth/capabilities";
+import { ROLE_LABELS } from "../../lib/auth/capabilities";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { SubNav, type SubNavItem } from "../ui/SubNav";
+import { SubNav } from "../ui/SubNav";
 import { AttentionBell } from "./AttentionBell";
-
-type Can = (cap: Capability) => boolean;
-
-type Section = {
-  key: string;
-  label: string;
-  Icon: LucideIcon;
-  prefix: string;
-  /** Section is shown when the member can see at least one sub-view */
-  items: Array<SubNavItem & { visible: (can: Can) => boolean }>;
-};
-
-const SECTIONS: Section[] = [
-  {
-    key: "partner",
-    label: "Shared with me",
-    Icon: Inbox,
-    prefix: "/partner",
-    items: [
-      {
-        href: "/partner",
-        label: "Shared handoffs",
-       
-        visible: (can) => can("acknowledge_handoff") && !can("view_accounts"),
-      },
-    ],
-  },
-  {
-    key: "discover",
-    label: "Discover",
-    Icon: Compass,
-    prefix: "/discover",
-    items: [
-      { href: "/discover/feed", label: "Opportunity feed", visible: (can) => can("discover") },
-      { href: "/discover/search", label: "Search", visible: (can) => can("discover") },
-      { href: "/discover/playbooks", label: "Playbooks", visible: (can) => can("discover") },
-    ],
-  },
-  {
-    key: "accounts",
-    label: "Accounts",
-    Icon: Briefcase,
-    prefix: "/accounts",
-    items: [
-      { href: "/accounts/watchlist", label: "Watchlist & imports", visible: (can) => can("view_accounts") },
-      {
-        href: "/accounts/sales-acceptance",
-        label: "Sales acceptance",
-        visible: (can) => can("accept") || can("submit_review"),
-      },
-      { href: "/accounts/pipeline", label: "Pipeline", visible: (can) => can("view_accounts") },
-      { href: "/accounts/monitors", label: "Monitors", visible: (can) => can("view_accounts") },
-    ],
-  },
-  {
-    key: "outreach",
-    label: "Outreach",
-    Icon: Send,
-    prefix: "/outreach",
-    items: [
-      { href: "/outreach/tasks", label: "Tasks", visible: (can) => can("view_tasks") },
-      { href: "/outreach/drafts", label: "Drafts", visible: (can) => can("view_drafts") },
-    ],
-  },
-  {
-    key: "reports",
-    label: "Reports",
-    Icon: FileChartColumn,
-    prefix: "/reports",
-    items: [
-      { href: "/reports/outcomes", label: "Outcomes", visible: (can) => can("view_outcomes") },
-    ],
-  },
-  {
-    key: "members",
-    label: "Members",
-    Icon: Users,
-    prefix: "/members",
-    items: [{ href: "/members", label: "Members", visible: (can) => can("manage_membership") }],
-  },
-  {
-    key: "workspaces",
-    label: "Workspaces",
-    Icon: Boxes,
-    prefix: "/workspaces",
-    items: [{ href: "/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
-  },
-  {
-    key: "settings",
-    label: "Settings",
-    Icon: Settings,
-    prefix: "/settings",
-    items: [
-      { href: "/settings/offer", label: "Offer & targeting", visible: (can) => can("manage_settings") },
-      { href: "/settings/suppressions", label: "Suppressions", visible: (can) => can("manage_suppressions") },
-      {
-        href: "/settings/connections",
-        label: "Connections & usage",
-       
-        visible: (can) => can("manage_settings") || can("research"),
-      },
-      { href: "/settings/password", label: "Password", visible: () => true },
-      { href: "/settings/how-it-works", label: "How it works", visible: () => true },
-    ],
-  },
-];
-
-/** Sections and sub-views this member may use, in navigation order. */
-export function visibleSections(can: Can) {
-  // Settings is always shown: every role can change their password there
-  return SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => i.visible(can)) })).filter((s) => s.items.length > 0);
-}
-
-/** True when the path is in this section — its prefix or any of its own pages (e.g. /sales-reviewer under Accounts). */
-export function inSection(section: Section, pathname: string) {
-  return pathname.startsWith(section.prefix) || section.items.some((i) => pathname.startsWith(i.href));
-}
-
-/** Landing page for a member: first view their role can use. */
-export function homeFor(can: Can): string {
-  return visibleSections(can)[0]?.items[0]?.href ?? "/settings/how-it-works";
-}
-
+import { PORTALS, portalForRole, portalHome, sectionOf, toPortalPath, visibleSections } from "./portals";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { can, role, user, workspaceName, workspaces, workspaceId, selectWorkspace } = useWorkspace();
-  const sections = visibleSections(can);
-  const current = sections.find((s) => inSection(s, pathname));
-  const subItems = current?.items ?? [];
+  // Each role has its own portal and menu; links stay inside it
+  const portal = portalForRole(role) ?? PORTALS.analyst;
+  const sections = visibleSections(portal, can);
+  const current = sectionOf(sections, toPortalPath(pathname));
+  const subItems = (current?.items ?? []).map((i) => ({ href: portal.prefix + i.href, label: i.label }));
   const initials = (user?.name ?? "?")
     .split(/\s+/)
     .map((p) => p[0])
@@ -162,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[var(--background)]">
       <aside className="fixed inset-y-0 left-0 z-30 flex w-[var(--sidebar-width)] flex-col border-r border-[var(--line)] bg-white print:hidden">
         {/* Brand */}
-        <Link href={homeFor(can)} prefetch className="flex h-16 shrink-0 items-center gap-2.5 px-5">
+        <Link href={portalHome(portal, can)} prefetch className="flex h-16 shrink-0 items-center gap-2.5 px-5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--red)] to-[var(--red-active)] text-white shadow-[0_2px_6px_rgba(187,33,48,0.35)]">
             <span className="text-[16px] font-bold leading-none" aria-hidden>
               S
@@ -192,9 +60,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   className="absolute inset-0 cursor-pointer opacity-0"
                   value={workspaceId ?? ""}
                   onChange={(e) => {
+                    // The role may differ in the other workspace: the portal guard then moves to its portal
                     selectWorkspace(e.target.value);
-                    // The portal redirects to the first view this role can use there
-                    router.push("/discover/feed");
                   }}
                 >
                   {workspaces.map((w) => (
@@ -212,12 +79,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Primary" className="mt-5 flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
           <p className="px-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-[var(--muted)]">Menu</p>
           {sections.map((item) => {
-            const active = inSection(item, pathname);
+            const active = item.key === current?.key;
             const Icon = item.Icon;
             return (
               <Link
                 key={item.key}
-                href={item.items[0]!.href}
+                href={portal.prefix + item.items[0]!.href}
                 prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={`group relative flex h-10 items-center gap-3 rounded-lg px-3 text-[13.5px] font-medium transition-colors ${

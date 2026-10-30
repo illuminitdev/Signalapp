@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useOptionalUserId } from "./useWorkspace";
 
 const PREFIX = "signal:";
 
@@ -18,8 +19,13 @@ function read<T>(key: string, fallback: T): T {
  * filters, half-typed text, the selected tab — never for data that must be shared or
  * kept reliably, which lives in the database. Storage may be unavailable (private
  * mode, blocked site data); the page then simply starts from `initial`.
+ *
+ * Saved per signed-in user, so two people using the same browser (e.g. an admin and a
+ * researcher) never pick up each other's selections or guided-flow steps.
  */
-export function usePersistentState<T>(key: string, initial: T) {
+export function usePersistentState<T>(baseKey: string, initial: T) {
+  const userId = useOptionalUserId();
+  const key = `${userId ?? "anon"}:${baseKey}`;
   const [value, setValue] = useState<T>(initial);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
