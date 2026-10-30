@@ -2,37 +2,63 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { AppShell, homeFor, inSection, visibleSections } from "./AppShell";
+import { AppShell } from "./AppShell";
+import { portalForRole, portalHome, sectionOf, toPortalPath, visibleSections } from "./portals";
 import { LoadingState } from "../common/LoadingState";
 import { useWorkspace, WorkspaceProvider } from "../../hooks/useWorkspace";
+
+/** Forced password change (temporary password) happens here, before any portal opens. */
+const FORCED_PASSWORD_PATH = "/password";
+
+/**
+ * Where this member should be instead of `pathname`, or null when they may stay. Members only
+ * ever see their own role's portal: a page from another portal (or an old link without a
+ * prefix) moves to the same page in their portal when they have it, otherwise to their home.
+ */
+function redirectFor(
+  pathname: string,
+  search: string,
+  role: string | null,
+  can: Parameters<typeof visibleSections>[1],
+): string | null {
+  const portal = portalForRole(role);
+  if (!portal) return null;
+  if (pathname === FORCED_PASSWORD_PATH) return portalHome(portal, can);
+  const path = toPortalPath(pathname);
+  const allowed = path !== "/" && Boolean(sectionOf(visibleSections(portal, can), path));
+  const inOwnPortal = pathname.startsWith(`${portal.prefix}/`);
+  if (inOwnPortal && allowed) return null;
+  return allowed ? portal.prefix + path + search : portalHome(portal, can);
+}
 
 function PortalInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { workspaceId, loading, error, unauthorized, can, user } = useWorkspace();
-  const onPasswordPage = pathname === "/settings/password";
+  const { workspaceId, loading, error, unauthorized, can, role, user } = useWorkspace();
+  const onForcedPasswordPage = pathname === FORCED_PASSWORD_PATH;
   const mustChange = Boolean(user?.mustChangePassword);
 
-  // Send each role to a section it can use (e.g. partners → shared handoffs)
-  const sections = workspaceId ? visibleSections(can) : [];
-  const allowedHere =
-    sections.some((s) => inSection(s, pathname)) || pathname === "/settings/how-it-works" || onPasswordPage;
   // The platform admin has no workspace; their home is the platform console
   const toPlatform = !loading && !mustChange && Boolean(user?.isPlatformAdmin) && !workspaceId;
-  const needsRedirect = toPlatform || (mustChange && !onPasswordPage) || (Boolean(workspaceId) && !allowedHere);
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  const portalTarget = !loading && !mustChange && workspaceId ? redirectFor(pathname, search, role, can) : null;
+  const target = toPlatform
+    ? "/platform"
+    : mustChange && !onForcedPasswordPage
+      ? FORCED_PASSWORD_PATH
+      : portalTarget;
 
   useEffect(() => {
     if (unauthorized) router.replace("/login");
-    else if (needsRedirect)
-      router.replace(toPlatform ? "/platform" : mustChange ? "/settings/password" : homeFor(can));
-  }, [unauthorized, needsRedirect, toPlatform, mustChange, router, can]);
+    else if (target) router.replace(target);
+  }, [unauthorized, target, router]);
 
-  if (unauthorized || needsRedirect) {
+  if (unauthorized || target) {
     return <LoadingState label="Redirecting…" />;
   }
 
   // Forced password change happens outside the workspace shell
-  if (mustChange && onPasswordPage) {
+  if (mustChange && onForcedPasswordPage) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4">
         <div className="w-full max-w-md">{children}</div>

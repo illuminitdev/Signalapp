@@ -27,8 +27,8 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     me()
       .then(({ user: u }) => {
-        if (u.mustChangePassword) return router.replace("/settings/password");
-        if (!u.isPlatformAdmin) return router.replace("/discover/feed");
+        if (u.mustChangePassword) return router.replace("/password");
+        if (!u.isPlatformAdmin) return router.replace("/home");
         setUser(u);
       })
       .catch((e) => {

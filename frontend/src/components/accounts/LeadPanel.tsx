@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { getBrief, type Brief } from "../../lib/api/accounts";

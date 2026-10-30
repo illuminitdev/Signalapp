@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { usePagination } from "../ui/Pagination";
 import { useEffect, useState } from "react";
 import { sendForReview, TASK_TYPE_LABELS, type Task } from "../../lib/api/tasks";

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { useEffect, useState } from "react";
 import { approveDraft, saveDraft, type Draft } from "../../lib/api/drafts";
 import { downloadFile } from "../../lib/api/accounts";

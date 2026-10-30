@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { usePagination } from "../ui/Pagination";
 import { useState } from "react";
 import type { DiscoveryRow } from "../../lib/api/research";
