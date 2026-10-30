@@ -23,7 +23,7 @@ export function Stepper({
 }) {
   return (
     <nav aria-label="Progress" className="-mx-1 overflow-x-auto px-1 pb-1">
-      <ol className="flex min-w-max items-center gap-2.5">
+      <ol className="flex min-w-max items-center gap-2">
         {steps.map((s, i) => {
           const isCurrent = i === current;
           const isDone = i < current || (i < reachable && !isCurrent);
@@ -35,27 +35,27 @@ export function Stepper({
                 disabled={!clickable}
                 aria-current={isCurrent ? "step" : undefined}
                 onClick={() => onSelect(i)}
-                className={`inline-flex items-center gap-2.5 rounded-full border px-3.5 py-2 text-sm transition-colors ${
+                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
                   isCurrent
-                    ? "border-[var(--red)] bg-[var(--red-tint)] font-semibold text-[var(--foreground)] shadow-[0_0_0_3px_var(--red-tint)]"
+                    ? "border-[var(--red)] bg-[var(--red-tint)] font-semibold text-[var(--foreground)]"
                     : isDone
-                      ? "border-[var(--line)] bg-white font-medium text-[var(--foreground)] hover:bg-[var(--chip-bg)]"
-                      : "border-[var(--line)] bg-white/70 text-[var(--muted)]"
+                      ? "border-[var(--line)] bg-white font-medium text-[var(--foreground)] hover:border-[var(--muted)] hover:bg-[var(--chip-bg)]"
+                      : "border-[var(--line)] bg-white text-[var(--muted)]"
                 } disabled:cursor-default`}
               >
                 <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
                     isCurrent
                       ? "bg-[var(--red)] text-white"
                       : isDone
                         ? "bg-[var(--badge-green-bg)] text-[var(--badge-green-fg)]"
-                        : "bg-[var(--chip-bg)] text-[var(--muted)]"
+                        : "bg-[var(--chip-bg)] text-[var(--muted)] font-medium"
                   }`}
                   aria-hidden
                 >
-                  {isDone ? <Check size={13} strokeWidth={3} /> : i + 1}
+                  {isDone ? <Check size={12} strokeWidth={2.5} /> : i + 1}
                 </span>
-                {s.label}
+                <span>{s.label}</span>
               </button>
             </li>
           );
