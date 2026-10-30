@@ -34,10 +34,10 @@ export function rateLimited(message = "Rate limit exceeded") {
   return new AppError(429, message, "rate_limited");
 }
 
-export function providerNotConfigured(provider = "exa") {
+export function providerNotConfigured(provider = "exa", envVar = "EXA_API_KEY") {
   return new AppError(
     503,
-    `${provider} provider is not configured. Set EXA_API_KEY in backend/.env`,
+    `${provider} provider is not configured. Set ${envVar} in backend/.env`,
     "provider_not_configured",
   );
 }

@@ -64,6 +64,20 @@
       "when": 1761190000000,
       "tag": "0008_add_active_playbook_to_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1761200000000,
+      "tag": "0009_add_opportunities_and_contacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1761210000000,
+      "tag": "0010_add_crm_mappings",
+      "breakpoints": true
     }
   ]
 }

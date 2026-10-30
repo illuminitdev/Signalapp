@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Building2,
-  ChartColumn,
+  Briefcase,
+  FileChartColumn,
   ChevronsUpDown,
   Compass,
   Inbox,
-  Layers,
+  Boxes,
   LogOut,
   Send,
   Settings,
@@ -61,7 +61,7 @@ const SECTIONS: Section[] = [
   {
     key: "accounts",
     label: "Accounts",
-    Icon: Building2,
+    Icon: Briefcase,
     prefix: "/accounts",
     items: [
       { href: "/accounts/watchlist", label: "Watchlist & imports", visible: (can) => can("view_accounts") },
@@ -87,7 +87,7 @@ const SECTIONS: Section[] = [
   {
     key: "reports",
     label: "Reports",
-    Icon: ChartColumn,
+    Icon: FileChartColumn,
     prefix: "/reports",
     items: [
       { href: "/reports/outcomes", label: "Outcomes", visible: (can) => can("view_outcomes") },
@@ -103,7 +103,7 @@ const SECTIONS: Section[] = [
   {
     key: "workspaces",
     label: "Workspaces",
-    Icon: Layers,
+    Icon: Boxes,
     prefix: "/workspaces",
     items: [{ href: "/workspaces", label: "Workspaces", visible: (can) => can("manage_membership") }],
   },
@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-[var(--sidebar-width)] flex-col border-r border-[var(--line)] bg-white">
+      <aside className="fixed inset-y-0 left-0 z-30 flex w-[var(--sidebar-width)] flex-col border-r border-[var(--line)] bg-white print:hidden">
         {/* Brand */}
         <Link href={homeFor(can)} prefetch className="flex h-16 shrink-0 items-center gap-2.5 px-5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--red)] to-[var(--red-active)] text-white shadow-[0_2px_6px_rgba(187,33,48,0.35)]">
@@ -175,7 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="px-3">
           <div className="relative flex items-center gap-2.5 rounded-lg border border-[var(--line)] bg-[var(--chip-bg)] px-3 py-2.5">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-[var(--muted)] shadow-[0_0_0_1px_var(--line)]">
-              <Layers size={15} strokeWidth={1.75} aria-hidden />
+              <Boxes size={15} strokeWidth={1.75} aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-[var(--muted)]">Workspace</p>
@@ -267,13 +267,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="ml-[var(--sidebar-width)] min-h-screen">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-end gap-3 border-b border-[var(--line)] bg-white/95 px-8 backdrop-blur">
+      <div className="ml-[var(--sidebar-width)] min-h-screen print:ml-0">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-end gap-3 border-b border-[var(--line)] bg-white/95 px-8 backdrop-blur print:hidden">
           <AttentionBell />
         </header>
 
-        <main className="mx-auto max-w-[1450px] px-[34px] py-8">
-          {subItems.length > 1 ? <SubNav items={subItems} /> : null}
+        <main className="mx-auto max-w-[1450px] px-[34px] py-8 print:max-w-none print:p-0">
+          {subItems.length > 1 ? (
+            <div className="print:hidden">
+              <SubNav items={subItems} />
+            </div>
+          ) : null}
           {children}
         </main>
       </div>

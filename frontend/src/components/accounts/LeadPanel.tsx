@@ -7,6 +7,7 @@ import { getBrief, type Brief } from "../../lib/api/accounts";
 import { formatDate } from "../../lib/utils/dates";
 import { StatusBadge } from "../common/StatusBadge";
 import { Button } from "../ui/Button";
+import { OpportunityPanel } from "./OpportunityPanel";
 import { humanize } from "../ui/Field";
 
 /** Slide-over with one lead's key data; the full brief stays one click away */
@@ -14,10 +15,13 @@ export function LeadPanel({
   accountId,
   workspaceId,
   onClose,
+  onOpportunitySaved,
 }: {
   accountId: string;
   workspaceId: string;
   onClose: () => void;
+  /** Lets the pipeline refresh its deal columns after an edit in the panel */
+  onOpportunitySaved?: () => void;
 }) {
   const [brief, setBrief] = useState<Brief | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export function LeadPanel({
         {brief && account ? (
           <div className="flex-1 space-y-6 px-6 py-5 text-sm">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Item label="Stage">
+              <Item label="Sales acceptance">
                 <StatusBadge status={account.acceptanceState} />
               </Item>
               <Item label="Research">
@@ -85,6 +89,8 @@ export function LeadPanel({
               <Item label="Added via">{humanize(account.source)}</Item>
               <Item label="Last updated">{formatDate(account.updatedAt)}</Item>
             </dl>
+
+            <OpportunityPanel accountId={accountId} workspaceId={workspaceId} compact onSaved={onOpportunitySaved} />
 
             <section>
               <h3 className="mb-2 text-[14px]">Signals</h3>

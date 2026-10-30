@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Layers, Search, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { Building2, Boxes, Search, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -122,7 +122,7 @@ export default function PlatformUsersPage() {
         <Tile Icon={Users} label="Users" value={data.totals.users} />
         <Tile Icon={ShieldCheck} label="Tenant admins" value={data.totals.admins} />
         <Tile Icon={Building2} label="Companies" value={data.totals.companies} />
-        <Tile Icon={Layers} label="Workspaces" value={data.totals.workspaces} />
+        <Tile Icon={Boxes} label="Workspaces" value={data.totals.workspaces} />
       </div>
 
       <div className="relative w-full max-w-sm">

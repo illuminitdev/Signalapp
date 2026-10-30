@@ -6,6 +6,7 @@ import {
   activities,
   evidence,
   handoffs,
+  opportunities,
   researchRuns,
   tasks,
   workspaces,
@@ -103,6 +104,17 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
       return false;
     }
   }).length;
+  // Current deal snapshot (not cohort-bound), from the opportunity records themselves
+  const opps = await db
+    .select({ stage: opportunities.stage, valueAmount: opportunities.valueAmount, currency: opportunities.currency, source: opportunities.source })
+    .from(opportunities)
+    .where(scope(opportunities));
+  const inCurrency = opps.filter((o) => o.currency === currency);
+  const sumValue = (rows: typeof opps) => rows.reduce((n, o) => n + (o.valueAmount ?? 0), 0);
+  const openOpps = inCurrency.filter((o) => o.stage !== "won" && o.stage !== "lost");
+  const opportunityStageCounts: Record<string, number> = {};
+  for (const o of opps) opportunityStageCounts[o.stage] = (opportunityStageCounts[o.stage] ?? 0) + 1;
+
   const evidenceCreated = await db
     .select({ reviewedAt: evidence.reviewedAt })
     .from(evidence)
@@ -135,10 +147,22 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
       crmOpportunities: null,
       meetings: null,
       attribution: "unassigned",
+      opportunities: {
+        total: opps.length,
+        open: opps.filter((o) => o.stage !== "won" && o.stage !== "lost").length,
+        won: opps.filter((o) => o.stage === "won").length,
+        lost: opps.filter((o) => o.stage === "lost").length,
+        openValue: sumValue(openOpps),
+        wonValue: sumValue(inCurrency.filter((o) => o.stage === "won")),
+        openWithoutValue: openOpps.filter((o) => o.valueAmount == null).length,
+        otherCurrency: opps.length - inCurrency.length,
+        source: opps.some((o) => o.source === "crm") ? "mixed" : "user_entered",
+      },
     },
     breakdowns: {
       activityByTaskType: activityByType,
       rejectionReasons,
+      opportunityStages: opportunityStageCounts,
       researchQuality: {
         runsQueuedOrRunning: runs.filter((r) => ["queued", "running", "retrying"].includes(r.status)).length,
         runsCompleted: runs.filter((r) => r.status === "completed").length,
@@ -152,7 +176,8 @@ export async function computeOutcomes(tenantId: string, workspaceId: string, fro
     notes: [
       "Acceptance rate = distinct accounts whose latest reviewer decision is Accepted ÷ distinct accounts with a reviewer decision in the cohort",
       "Task completion is an activity count; it never changes pipeline stage or records a meeting",
-      `Monetary values are reported in ${currency}; Phase 1 records no opportunity values (CRM not connected)`,
+      `Opportunity values are user-entered and reported in ${currency}; deals in other currencies are counted but not summed. CRM-synced opportunities stay empty until a CRM is connected`,
+      "Opportunity stage is recorded separately from sales acceptance; accepting a brief never creates or moves a deal",
       "Meetings booked/attended are only reported from connected CRM or user-entered events",
     ],
   };

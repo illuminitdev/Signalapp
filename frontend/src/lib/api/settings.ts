@@ -67,7 +67,7 @@ export type Connections = {
   research: { provider: string; configured: boolean };
   usage: { quotaMonthly: number; usedMonthly: number; periodStart: string | null };
   entitlements: { researchEnabled: boolean; researchKillSwitch: boolean };
-  crm: { configured: boolean; note: string };
+  crm: { provider: string; configured: boolean; enabled: boolean; note: string };
   sending: { enabled: boolean; note: string };
 };
 
@@ -85,8 +85,70 @@ export function patchEntitlements(
   });
 }
 
-export type Outcomes = {
-  cohort: { from: string; to: string; dateBasis: string; decisionRule: string };
+export type ReportView = "admin" | "researcher" | "reviewer" | "sdr" | "analyst";
+
+export type AdminReport = {
+  usage: { quotaMonthly: number; usedMonthly: number; periodStart: string | null };
+  team: Array<{
+    userId: string;
+    name: string;
+    roles: string[];
+    researchRuns: number;
+    evidenceReviewed: number;
+    briefsSubmitted: number;
+    reviewerDecisions: number;
+    tasksCompleted: number;
+    openTasks: number;
+  }>;
+};
+
+export type ResearcherReport = {
+  researchRuns: number;
+  runsCompleted: number;
+  runsFailed: number;
+  runsWithNoResults: number;
+  discoveryRuns: number;
+  companiesFound: number;
+  accountsResearched: number;
+  evidenceReviewed: number;
+  accountsWithReviewedEvidence: number;
+  briefsSubmitted: number;
+  submittedAwaitingDecision: number;
+  submittedAccepted: number;
+  submittedReturned: number;
+  submittedRejected: number;
+  returnReasons: Record<string, number>;
+};
+
+export type ReviewerReport = {
+  decisionEvents: number;
+  accountsDecided: number;
+  accepted: number;
+  returned: number;
+  rejected: number;
+  acceptanceRate: number | null;
+  reasons: Record<string, number>;
+  queueWaiting: number;
+  oldestWaitingDays: number | null;
+  handoffsPrepared: number;
+  handoffsByState: Record<string, number>;
+};
+
+export type SdrReport = {
+  openTasks: number;
+  inProgressTasks: number;
+  overdueTasks: number;
+  dueToday: number;
+  completedTasks: number;
+  cancelledTasks: number;
+  completedByType: Record<string, number>;
+  assignedAccounts: number;
+  acceptedAssignedAccounts: number;
+  accountsWithMyTasks: number;
+};
+
+/** Workspace-wide totals. Not returned to SDRs, whose report covers only their own work. */
+export type WorkspaceOutcomes = {
   currency: string;
   denominators: { accountsWithReviewerDecision: number };
   metrics: {
@@ -104,14 +166,35 @@ export type Outcomes = {
     crmOpportunities: number | null;
     meetings: number | null;
     attribution: string;
+    opportunities: {
+      total: number;
+      open: number;
+      won: number;
+      lost: number;
+      openValue: number;
+      wonValue: number;
+      openWithoutValue: number;
+      otherCurrency: number;
+      source: "user_entered" | "mixed";
+    };
   };
   breakdowns: {
     activityByTaskType: Record<string, number>;
     rejectionReasons: Record<string, number>;
+    opportunityStages: Record<string, number>;
     researchQuality: Record<string, number>;
   };
   notes: string[];
 };
+
+export type Outcomes = {
+  view: ReportView;
+  cohort: { from: string; to: string; dateBasis: string; decisionRule: string };
+  admin?: AdminReport;
+  researcher?: ResearcherReport;
+  reviewer?: ReviewerReport;
+  sdr?: SdrReport;
+} & Partial<WorkspaceOutcomes>;
 
 export function getOutcomes(workspaceId: string, from?: string, to?: string) {
   const qs = new URLSearchParams();

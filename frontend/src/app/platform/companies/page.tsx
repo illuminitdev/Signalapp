@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
-import { Building2, CircleCheck, Gauge, Layers, Plus, Search, Users, X, type LucideIcon } from "lucide-react";
+import { Building2, CircleCheck, Gauge, Boxes, Plus, Search, Users, X, type LucideIcon } from "lucide-react";
 import { CompanyCards } from "@/components/platform/CompanyCards";
 import { createCompany, getPlatformOverview, type PlatformCompany } from "@/lib/api/platform";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -173,7 +173,7 @@ export default function PlatformCompaniesPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryTile Icon={Building2} label="Companies" value={companies.length} />
-        <SummaryTile Icon={Layers} label="Workspaces" value={totals.workspaces} />
+        <SummaryTile Icon={Boxes} label="Workspaces" value={totals.workspaces} />
         <SummaryTile Icon={Users} label="Members" value={totals.members} />
         <SummaryTile
           Icon={Gauge}
@@ -202,7 +202,11 @@ export default function PlatformCompaniesPage() {
         </p>
       </div>
 
-      <CompanyCards companies={shown} empty={q ? "No company matches that name." : "No companies yet."} />
+      <CompanyCards
+        companies={shown}
+        empty={q ? "No company matches that name." : "No companies yet."}
+        onChange={() => void refresh()}
+      />
     </div>
   );
 }

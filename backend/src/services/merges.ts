@@ -5,11 +5,14 @@ import {
   accountIdentities,
   accounts,
   activities,
+  contacts,
   drafts,
   evidence,
   handoffs,
   mergeCandidates,
+  opportunities,
   researchRuns,
+  roleHypotheses,
   signals,
   tasks,
 } from "../db/schema/index.js";
@@ -112,6 +115,11 @@ export async function resolveMergeCandidate(input: {
     .update(acceptanceDecisions)
     .set({ accountId: keepId })
     .where(eq(acceptanceDecisions.accountId, dropId));
+  await db.update(contacts).set({ accountId: keepId }).where(eq(contacts.accountId, dropId));
+  await db.update(roleHypotheses).set({ accountId: keepId }).where(eq(roleHypotheses.accountId, dropId));
+  // One opportunity per account: the survivor's deal wins; a lone one on the merged account moves over
+  const [keepOpp] = await db.select({ id: opportunities.id }).from(opportunities).where(eq(opportunities.accountId, keepId)).limit(1);
+  if (!keepOpp) await db.update(opportunities).set({ accountId: keepId }).where(eq(opportunities.accountId, dropId));
   const dropIdentities = await db
     .select()
     .from(accountIdentities)

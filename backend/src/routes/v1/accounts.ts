@@ -10,6 +10,7 @@ import {
   signals,
   sources,
   acceptanceDecisions,
+  opportunities,
   tasks,
   users,
 } from "../../db/schema/index.js";
@@ -112,6 +113,20 @@ export async function accountRoutes(app: FastifyInstance) {
       for (const d of decisions) {
         if (d.nextAction && !decisionByAccount.has(d.accountId)) decisionByAccount.set(d.accountId, d.nextAction);
       }
+      // Deal stage lives on its own record, separate from acceptance (R5)
+      const opps = await db
+        .select({
+          accountId: opportunities.accountId,
+          stage: opportunities.stage,
+          valueAmount: opportunities.valueAmount,
+          currency: opportunities.currency,
+          source: opportunities.source,
+          syncStatus: opportunities.syncStatus,
+          updatedAt: opportunities.updatedAt,
+        })
+        .from(opportunities)
+        .where(and(inArray(opportunities.accountId, ids), eq(opportunities.tenantId, m.tenantId)));
+      const oppByAccount = new Map(opps.map((o) => [o.accountId, o]));
 
       return {
         rows: rows.map((r) => {
@@ -124,6 +139,7 @@ export async function accountRoutes(app: FastifyInstance) {
             nextAction: task ? task.instruction?.trim() || null : (decisionByAccount.get(r.id) ?? null),
             taskType: task?.type ?? null,
             dueAt: task?.dueAt ?? null,
+            opportunity: oppByAccount.get(r.id) ?? null,
           };
         }),
       };

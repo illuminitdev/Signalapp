@@ -9,3 +9,6 @@ export * from "./suppressions.js";
 export * from "./audit.js";
 export * from "./ops.js";
 export * from "./monitors.js";
+export * from "./opportunities.js";
+export * from "./contacts.js";
+export * from "./crm.js";

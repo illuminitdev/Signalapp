@@ -1,7 +1,8 @@
-import { Briefcase, CalendarDays, Layers, Users, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { Briefcase, CalendarDays, Boxes, RotateCcw, Users, type LucideIcon } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/auth/capabilities";
 import { formatDate } from "@/lib/utils/dates";
-import type { PlatformCompany } from "@/lib/api/platform";
+import { resetCompanyResearch, type PlatformCompany } from "@/lib/api/platform";
 import { usePagination } from "@/components/ui/Pagination";
 
 const AVATAR_TONES = [
@@ -13,13 +14,13 @@ const AVATAR_TONES = [
 ];
 
 /** Same company, same colour, on every visit. */
-function toneFor(id: string) {
+export function toneFor(id: string) {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return AVATAR_TONES[h % AVATAR_TONES.length];
 }
 
-function initials(name: string) {
+export function initials(name: string) {
   return name
     .split(/\s+/)
     .filter(Boolean)
@@ -41,7 +42,8 @@ function Stat({ Icon, label, value }: { Icon: LucideIcon; label: string; value: 
   );
 }
 
-function CompanyCard({ c }: { c: PlatformCompany }) {
+function CompanyCard({ c, onReset }: { c: PlatformCompany; onReset?: () => void }) {
+  const [resetting, setResetting] = useState(false);
   const pct = c.researchQuotaMonthly ? Math.min(100, (c.researchUsedMonthly / c.researchQuotaMonthly) * 100) : 0;
   const barTone = pct >= 90 ? "bg-[var(--red)]" : pct >= 70 ? "bg-[var(--badge-amber-fg)]" : "bg-[var(--navy)]";
   const roles = Object.entries(c.membersByRole).sort(([a], [b]) => (ROLE_LABELS[a] ?? a).localeCompare(ROLE_LABELS[b] ?? b));
@@ -67,7 +69,7 @@ function CompanyCard({ c }: { c: PlatformCompany }) {
       </header>
 
       <div className="mt-5 grid grid-cols-3 divide-x divide-[var(--line)]">
-        <Stat Icon={Layers} label="Workspaces" value={c.workspaces} />
+        <Stat Icon={Boxes} label="Workspaces" value={c.workspaces} />
         <Stat Icon={Users} label="Members" value={c.members} />
         <Stat Icon={Briefcase} label="Accounts" value={c.accounts} />
       </div>
@@ -90,8 +92,32 @@ function CompanyCard({ c }: { c: PlatformCompany }) {
       <div className="mt-auto pt-5">
         <div className="flex items-baseline justify-between text-xs">
           <span className="font-semibold text-[var(--muted)]">Research this month</span>
-          <span className="tabular-nums text-[var(--foreground)]">
-            <span className="font-semibold">{c.researchUsedMonthly}</span> / {c.researchQuotaMonthly} units
+          <span className="flex items-center gap-2">
+            <span className="tabular-nums text-[var(--foreground)]">
+              <span className="font-semibold">{c.researchUsedMonthly}</span> / {c.researchQuotaMonthly} units
+            </span>
+            <button
+              type="button"
+              title="Reset research units to 0"
+              aria-label={`Reset ${c.name} research units`}
+              disabled={resetting || c.researchUsedMonthly === 0}
+              onClick={async () => {
+                if (!confirm(`Reset ${c.name}'s research usage to 0 units?`)) return;
+                setResetting(true);
+                try {
+                  await resetCompanyResearch(c.id);
+                  onReset?.();
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Could not reset research units");
+                } finally {
+                  setResetting(false);
+                }
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-[var(--line)] bg-white px-2 py-0.5 text-[11px] font-medium text-[var(--muted)] transition-colors hover:border-[var(--red)] hover:bg-[var(--red-tint)] hover:text-[var(--red-active)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[var(--line)] disabled:hover:bg-white disabled:hover:text-[var(--muted)]"
+            >
+              <RotateCcw size={11} className={resetting ? "animate-spin" : undefined} aria-hidden />
+              Reset
+            </button>
           </span>
         </div>
         <div
@@ -110,7 +136,16 @@ function CompanyCard({ c }: { c: PlatformCompany }) {
 }
 
 /** Card grid of companies (counts only), used on the Companies page. */
-export function CompanyCards({ companies, empty }: { companies: PlatformCompany[]; empty: React.ReactNode }) {
+export function CompanyCards({
+  companies,
+  empty,
+  onChange,
+}: {
+  companies: PlatformCompany[];
+  empty: React.ReactNode;
+  /** Called after a company's data changed (e.g. research units reset) so the page can reload */
+  onChange?: () => void;
+}) {
   const { pageItems, pager } = usePagination(companies);
   if (!companies.length) {
     return (
@@ -123,7 +158,7 @@ export function CompanyCards({ companies, empty }: { companies: PlatformCompany[
     <div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {pageItems.map((c) => (
-          <CompanyCard key={c.id} c={c} />
+          <CompanyCard key={c.id} c={c} onReset={onChange} />
         ))}
       </div>
       {pager}

@@ -12,6 +12,9 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   EXA_API_KEY: z.string().optional().default(""),
+  // CRM adapter (Phase 2). Token stays server-side; portal id only builds "Open in CRM" links
+  HUBSPOT_ACCESS_TOKEN: z.string().optional().default(""),
+  HUBSPOT_PORTAL_ID: z.string().optional().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -41,4 +44,8 @@ export function isExaConfigured(): boolean {
 
 export function isProduction(): boolean {
   return getEnv().NODE_ENV === "production";
+}
+
+export function isHubspotConfigured(): boolean {
+  return Boolean(getEnv().HUBSPOT_ACCESS_TOKEN?.trim());
 }

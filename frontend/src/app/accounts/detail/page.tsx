@@ -11,6 +11,9 @@ import { ScoreBreakdown } from "@/components/research/ScoreBreakdown";
 import { AcceptanceActions } from "@/components/qualification/AcceptanceActions";
 import { ResearchRunStatus } from "@/components/research/ResearchRunStatus";
 import { HandoffPanel } from "@/components/handoffs/HandoffPanel";
+import { OpportunityPanel } from "@/components/accounts/OpportunityPanel";
+import { PeoplePanel } from "@/components/accounts/PeoplePanel";
+import { CrmSyncPanel } from "@/components/accounts/CrmSyncPanel";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { TaskQueue } from "@/components/tasks/TaskQueue";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -160,6 +163,8 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
         <EvidenceList items={brief.evidence} workspaceId={workspaceId} canReview={can("review_evidence")} onChanged={refresh} />
       </section>
 
+      <PeoplePanel accountId={accountId} workspaceId={workspaceId} evidence={brief.evidence} />
+
       <AcceptanceActions
         accountId={accountId}
         workspaceId={workspaceId}
@@ -170,6 +175,10 @@ function AccountBrief({ workspaceId, accountId }: { workspaceId: string; account
         decisions={brief.decisions}
         onDone={refresh}
       />
+
+      <OpportunityPanel accountId={accountId} workspaceId={workspaceId} />
+
+      <CrmSyncPanel accountId={accountId} workspaceId={workspaceId} acceptanceState={account.acceptanceState} />
 
       {can("tasks") ? (
         <div>
