@@ -80,8 +80,14 @@ function ConnectionsView({ workspaceId }: { workspaceId: string }) {
 
         <Card>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[16px]">CRM</h2>
-            <Badge>Not connected</Badge>
+            <h2 className="text-[16px]">CRM{data.crm.configured ? ` · ${data.crm.provider === "hubspot" ? "HubSpot" : data.crm.provider}` : ""}</h2>
+            {!data.crm.configured ? (
+              <Badge>Not connected</Badge>
+            ) : data.crm.enabled ? (
+              <Badge tone="green">Connected</Badge>
+            ) : (
+              <Badge tone="amber">Switched off</Badge>
+            )}
           </div>
           <p className="mt-2 text-sm text-[var(--muted)]">{data.crm.note}</p>
         </Card>

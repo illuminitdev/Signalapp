@@ -6,6 +6,7 @@ import { accounts, memberships, tenants, users, workspaces } from "../../db/sche
 import { requirePlatformAdmin } from "../../middleware/authenticate.js";
 import { provisionTenant, provisionWorkspace } from "../../services/tenants.js";
 import { writeAudit } from "../../services/audit.js";
+import { notFound } from "../../utils/errors.js";
 
 /**
  * App-owner console. Returns counts only: a platform admin never reads a tenant's
@@ -91,6 +92,33 @@ export async function platformRoutes(app: FastifyInstance) {
       metadata: { adminEmail: created.email },
     });
     return { tenantId: created.tenantId, adminEmail: created.email };
+  });
+
+  /** Reset a company's research usage for the current month back to 0 units. */
+  app.post("/v1/platform/tenants/:tenantId/reset-research", { preHandler: requirePlatformAdmin }, async (req) => {
+    const { tenantId } = req.params as { tenantId: string };
+    const db = getDb();
+    const [before] = await db
+      .select({ used: tenants.researchUsedMonthly })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    if (!before) throw notFound("Company not found");
+
+    const [after] = await db
+      .update(tenants)
+      .set({ researchUsedMonthly: 0 })
+      .where(eq(tenants.id, tenantId))
+      .returning({ researchUsedMonthly: tenants.researchUsedMonthly, researchQuotaMonthly: tenants.researchQuotaMonthly });
+    await writeAudit({
+      tenantId,
+      actorUserId: req.actor!.userId,
+      action: "tenant.research_usage_reset_by_platform_admin",
+      entityType: "tenant",
+      entityId: tenantId,
+      metadata: { previousUsed: before.used },
+    });
+    return after;
   });
 
   /** Every workspace across all companies, with counts only. */

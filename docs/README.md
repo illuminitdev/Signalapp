@@ -11,6 +11,7 @@ Start here if you're new to the project. Read these in order. Together they take
 | 5 | [Data model](05-data-model.md) | The database tables and how they relate |
 | 6 | [Rules that must never break](06-security-and-rules.md) | Tenant isolation, permissions, suppression, the 12 release gates |
 | 7 | [Setup, testing and migrations](07-setup-and-testing.md) | Running locally, tests, database changes |
+| 8 | [12 test gates](08-12-test-gates.md) | Each Phase 1 release gate, with step-by-step manual tests |
 
 ## One-paragraph summary
 

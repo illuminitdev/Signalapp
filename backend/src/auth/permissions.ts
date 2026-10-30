@@ -24,6 +24,8 @@ export const capabilities = [
   "export",
   "view_outcomes",
   "view_reports",
+  "manage_pipeline",
+  "manage_integrations",
 ] as const;
 export type Capability = (typeof capabilities)[number];
 
@@ -46,7 +48,17 @@ const roleCaps: Record<MembershipRole, readonly Capability[]> = {
     "view_outcomes",
   ],
   // SDR account reads are further scoped to assigned accounts (see accountScope).
-  sdr: ["view_accounts", "qualify", "view_tasks", "tasks", "view_drafts", "drafts", "export", "view_outcomes"],
+  sdr: [
+    "view_accounts",
+    "qualify",
+    "view_tasks",
+    "tasks",
+    "view_drafts",
+    "drafts",
+    "export",
+    "view_outcomes",
+    "manage_pipeline",
+  ],
   sales_reviewer: [
     "view_accounts",
     "review_evidence",
@@ -61,6 +73,8 @@ const roleCaps: Record<MembershipRole, readonly Capability[]> = {
     "export",
     "view_outcomes",
     "view_reports",
+    "manage_pipeline",
+    "manage_integrations",
   ],
   // Partners only see handoffs expressly shared with them; no workspace reads.
   partner: ["acknowledge_handoff"],

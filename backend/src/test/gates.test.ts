@@ -1,10 +1,4 @@
-/**
- * Phase 1 release gates (spec §10) as end-to-end API tests.
- *
- * Runs only when TEST_DATABASE_URL points at a disposable database (e.g. a Neon
- * branch). It refuses to run against the DATABASE_URL in backend/.env.
- *   TEST_DATABASE_URL=postgres://... npm run test:gates
- */
+
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { config as loadDotenv } from "dotenv";
 import type { FastifyInstance } from "fastify";

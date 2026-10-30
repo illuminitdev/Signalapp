@@ -1,3 +1,4 @@
+import type { OpportunityStage } from "./opportunities";
 import { api, API_URL, ApiError } from "./client";
 
 export type Account = {
@@ -111,6 +112,15 @@ export type PipelineRow = {
   nextAction: string | null;
   taskType: "research" | "review" | "call" | "email" | "follow_up" | null;
   dueAt: string | null;
+  /** Deal progress, recorded separately from acceptance; null when no deal exists yet */
+  opportunity: {
+    stage: OpportunityStage;
+    valueAmount: number | null;
+    currency: string;
+    source: "user_entered" | "crm";
+    syncStatus: "recorded" | "queued" | "synced" | "failed";
+    updatedAt: string;
+  } | null;
 };
 
 export function getPipeline(workspaceId: string) {

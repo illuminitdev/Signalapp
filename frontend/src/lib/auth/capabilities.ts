@@ -22,7 +22,9 @@ export type Capability =
   | "drafts"
   | "export"
   | "view_outcomes"
-  | "view_reports";
+  | "view_reports"
+  | "manage_pipeline"
+  | "manage_integrations";
 
 export const ROLE_LABELS: Record<string, string> = {
   tenant_admin: "Tenant admin",

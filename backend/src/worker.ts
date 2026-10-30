@@ -3,6 +3,8 @@ import { getBoss, JOB_IMPORT, JOB_RESEARCH } from "./jobs/queue.js";
 import { handleCsvImport } from "./jobs/handlers/csvImport.js";
 import { handleResearchRun } from "./jobs/handlers/researchRun.js";
 import { runDueMonitors } from "./services/monitors.js";
+import { JOB_CRM_SYNC, type CrmSyncJob } from "./jobs/crmQueue.js";
+import { handleCrmSync } from "./jobs/handlers/crmSync.js";
 
 async function main() {
   getEnv();
@@ -22,6 +24,11 @@ async function main() {
     await handleCsvImport(job.data as { importJobId: string; csvText: string });
   });
 
+  await boss.createQueue(JOB_CRM_SYNC);
+  await boss.work<CrmSyncJob>(JOB_CRM_SYNC, async ([job]) => {
+    if (job) await handleCrmSync(job.data);
+  });
+
   // Background cron check for active monitors whose frequency interval has elapsed
   setInterval(async () => {
     try {
@@ -31,7 +38,7 @@ async function main() {
     }
   }, 60_000);
 
-  console.log("Signal worker listening for research-run, csv-import, and active scheduled monitors");
+  console.log("Signal worker listening for research-run, csv-import, crm-sync, and active scheduled monitors");
 }
 
 main().catch((err) => {

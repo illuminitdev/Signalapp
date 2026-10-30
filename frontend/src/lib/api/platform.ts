@@ -34,6 +34,14 @@ export async function createCompany(body: {
   });
 }
 
+/** Set a company's research units used this month back to 0. */
+export async function resetCompanyResearch(tenantId: string) {
+  return api<{ researchUsedMonthly: number; researchQuotaMonthly: number }>(
+    `/v1/platform/tenants/${tenantId}/reset-research`,
+    { method: "POST" },
+  );
+}
+
 export type PlatformWorkspace = {
   id: string;
   name: string;

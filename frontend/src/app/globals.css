@@ -378,3 +378,24 @@ a {
     opacity: 1;
   }
 }
+
+/* Printing / "Save as PDF": keep colours, avoid splitting cards across pages */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  section,
+  table,
+  tr,
+  .rounded-\[10px\],
+  .rounded-\[12px\] {
+    break-inside: avoid;
+  }
+}

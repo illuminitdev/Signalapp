@@ -17,6 +17,9 @@ import { evidenceRoutes } from "./evidence.js";
 import { platformRoutes } from "./platform.js";
 import { companyWorkspaceRoutes } from "./companyWorkspaces.js";
 import { monitorsRoutes } from "./monitors.js";
+import { opportunityRoutes } from "./opportunities.js";
+import { contactRoutes } from "./contacts.js";
+import { integrationRoutes } from "./integrations.js";
 
 export async function v1Routes(app: FastifyInstance) {
   await authRoutes(app);
@@ -37,4 +40,7 @@ export async function v1Routes(app: FastifyInstance) {
   await outcomeRoutes(app);
   await platformRoutes(app);
   await monitorsRoutes(app);
+  await opportunityRoutes(app);
+  await contactRoutes(app);
+  await integrationRoutes(app);
 }

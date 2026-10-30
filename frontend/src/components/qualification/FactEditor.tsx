@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { api } from "../../lib/api/client";
 import type { EvidenceItem, Fact } from "../../lib/api/accounts";
 import { Button } from "../ui/Button";
@@ -55,6 +56,7 @@ export function FactEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [rationaleState, setRationaleState] = useState<"idle" | "saving" | "saved">("idle");
 
   // Load the current value of the chosen field for editing
   useEffect(() => {
@@ -67,7 +69,8 @@ export function FactEditor({
 
   useEffect(() => setRationaleText(rationale ?? ""), [rationale]);
 
-  async function save(body: Record<string, unknown>, done: string) {
+  /** Returns true when the save succeeded. */
+  async function save(body: Record<string, unknown>, done: string): Promise<boolean> {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -82,6 +85,7 @@ export function FactEditor({
           : done,
       );
       onSaved();
+      return true;
     } catch (err) {
       setError(
         err instanceof Error && /version|concurrent/i.test(err.message)
@@ -91,6 +95,7 @@ export function FactEditor({
             : "Save failed",
       );
       if (err instanceof Error && /version|concurrent/i.test(err.message)) onSaved();
+      return false;
     } finally {
       setBusy(false);
     }
@@ -103,7 +108,10 @@ export function FactEditor({
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            void save({ rationale: rationaleText }, "Rationale saved.");
+            setRationaleState("saving");
+            void save({ rationale: rationaleText }, "Rationale saved.").then((ok) =>
+              setRationaleState(ok ? "saved" : "idle"),
+            );
           }}
         >
           <h3 className="text-[15px]">Qualification rationale</h3>
@@ -112,12 +120,26 @@ export function FactEditor({
               className={inputClass}
               rows={3}
               value={rationaleText}
-              onChange={(e) => setRationaleText(e.target.value)}
+              onChange={(e) => {
+                setRationaleText(e.target.value);
+                setRationaleState("idle");
+              }}
               placeholder="e.g. Opening a new Leeds data centre in Q1; current servers are five years old"
             />
           </Field>
-          <Button type="submit" disabled={busy || !rationaleText.trim()}>
-            Save rationale
+          <Button
+            type="submit"
+            disabled={busy || !rationaleText.trim() || rationaleState === "saved"}
+            className={
+              rationaleState === "saved"
+                ? "!border-[var(--badge-green-bg)] !bg-[var(--badge-green-bg)] !text-[var(--badge-green-fg)] !opacity-100"
+                : undefined
+            }
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {rationaleState === "saved" ? <Check size={16} aria-hidden /> : null}
+              {rationaleState === "saving" ? "Saving…" : rationaleState === "saved" ? "Saved" : "Save rationale"}
+            </span>
           </Button>
         </form>
       </Card>

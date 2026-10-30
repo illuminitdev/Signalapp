@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, CalendarDays, ChevronRight, CircleCheck, Layers, Plus, Users, X } from "lucide-react";
+import { Briefcase, CalendarDays, ChevronRight, CircleCheck, Boxes, Plus, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RequireCap } from "@/components/common/RequireCap";
 import { LoadingState } from "@/components/common/LoadingState";
@@ -27,7 +27,7 @@ function WorkspaceCard({ w, current }: { w: CompanyWorkspace; current: boolean }
     >
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--chip-bg)] text-[var(--navy)]" aria-hidden>
-          <Layers size={18} />
+          <Boxes size={18} />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[15px] text-[var(--foreground)]" title={w.name}>

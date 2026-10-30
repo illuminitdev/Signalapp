@@ -8,6 +8,7 @@ import { loadMembership, requireCap } from "../../middleware/requireMembership.j
 import { hasCapability } from "../../auth/permissions.js";
 import { getUsage } from "../../services/budget.js";
 import { researchProviderStatus } from "../../providers/research/index.js";
+import { crmProviderStatus } from "../../providers/crm/index.js";
 import { newId } from "../../utils/ids.js";
 import { forbidden, validationError } from "../../utils/errors.js";
 import { writeAudit } from "../../services/audit.js";
@@ -264,8 +265,11 @@ export async function settingsRoutes(app: FastifyInstance) {
           researchKillSwitch: entitlements.researchKillSwitch,
         },
         crm: {
-          configured: false,
-          note: "CRM synchronization is a Phase 2 integration and is not enabled",
+          ...crmProviderStatus(),
+          enabled: entitlements.crmEnabled,
+          note: crmProviderStatus().configured
+            ? "Accepted accounts can be sent to the CRM from each account page, with a preview first"
+            : "No CRM connected. Set HUBSPOT_ACCESS_TOKEN in backend/.env to enable CRM sync",
         },
         sending: {
           enabled: false,
