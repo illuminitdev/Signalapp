@@ -2,9 +2,9 @@ import { getEnv } from "./config/env.js";
 import { getBoss, JOB_IMPORT, JOB_RESEARCH } from "./jobs/queue.js";
 import { handleCsvImport } from "./jobs/handlers/csvImport.js";
 import { handleResearchRun } from "./jobs/handlers/researchRun.js";
-import { runDueMonitors } from "./services/monitors.js";
 import { JOB_CRM_SYNC, type CrmSyncJob } from "./jobs/crmQueue.js";
 import { handleCrmSync } from "./jobs/handlers/crmSync.js";
+import { enqueueDueMonitors, handleMonitorCheck, JOB_MONITOR_CHECK, type MonitorCheckJob } from "./jobs/monitorQueue.js";
 
 async function main() {
   getEnv();
@@ -29,12 +29,16 @@ async function main() {
     if (job) await handleCrmSync(job.data);
   });
 
-  // Background cron check for active monitors whose frequency interval has elapsed
+  // Scheduled monitors: each due monitor becomes one queued job (locked per monitor, retried on outages)
+  await boss.createQueue(JOB_MONITOR_CHECK);
+  await boss.work<MonitorCheckJob>(JOB_MONITOR_CHECK, { includeMetadata: true }, async ([job]) => {
+    if (job) await handleMonitorCheck(job.data, { retryCount: job.retryCount ?? 0 });
+  });
   setInterval(async () => {
     try {
-      await runDueMonitors();
+      await enqueueDueMonitors();
     } catch (err) {
-      console.error("[monitor-cron]", err);
+      console.error("[monitor-scheduler]", err);
     }
   }, 60_000);
 

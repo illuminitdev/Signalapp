@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Search, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RequireCap } from "@/components/common/RequireCap";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -89,11 +90,17 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
                 Switch to this workspace
               </Button>
             ) : null}
-            {!adding ? (
-              <Button variant="primary" onClick={() => setAdding(true)}>
-                Add user
-              </Button>
-            ) : null}
+            <Button
+              variant="primary"
+              onClick={() => {
+                setError(null);
+                setAdding(true);
+              }}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <UserPlus size={16} aria-hidden /> Add user
+              </span>
+            </Button>
           </>
         }
       />
@@ -117,72 +124,79 @@ function WorkspaceUsers({ workspaceId, targetId }: { workspaceId: string; target
         </p>
       ) : null}
 
-      {adding ? (
-        <Card accent>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setError(null);
-              setNotice(null);
-              try {
-                const res = await addWorkspaceMember(workspaceId, targetId, {
-                  email: form.email,
-                  name: form.name || undefined,
-                  role: form.role,
-                  password: form.password || undefined,
-                });
-                setNotice(
-                  res.existingAccount
-                    ? `${form.email} already had a SignalApp account, so they keep their own password and can open ${ws.name} now.`
-                    : `${form.email} can sign in now with the password you set. They can change it under Settings → Password.`,
-                );
-                setForm(EMPTY);
-                setAdding(false);
-                await refresh();
-                // The admin may have added themselves; keep the switcher in step
-                if (form.email.trim().toLowerCase() === user?.email.toLowerCase()) await refreshSwitcher();
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Could not add the user");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <h2 className="text-[15px]">Add a user to {ws.name}</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Email">
-                <input type="email" required className={inputClass} value={form.email} onChange={set("email")} placeholder="e.g. sara@yourcompany.com" />
-              </Field>
-              <Field label="Name (optional)">
-                <input className={inputClass} value={form.name} onChange={set("name")} placeholder="e.g. Sara Khan" />
-              </Field>
-              <Field label="Password" hint="At least 8 characters. Not needed if they already have an account.">
-                <PasswordInput id="ws-user-password" autoComplete="new-password" minLength={8} value={form.password} onChange={set("password")} placeholder="Set their password" />
-              </Field>
-              <Field label="Role">
-                <select className={inputClass} value={form.role} onChange={set("role")}>
-                  {ROLE_ORDER.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">{ROLE_DESCRIPTIONS[form.role]}</p>
+      <Modal
+        open={adding}
+        onClose={() => setAdding(false)}
+        title={`Add a user to ${ws.name}`}
+        description="They can sign in straight away with the password you set, and change it under Settings → Password."
+        footer={
+          <>
+            <Button onClick={() => setAdding(false)}>Cancel</Button>
+            <Button type="submit" form="add-ws-user-form" variant="primary" disabled={busy || !form.email}>
+              {busy ? "Adding…" : "Grant access"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="add-ws-user-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setError(null);
+            setNotice(null);
+            try {
+              const res = await addWorkspaceMember(workspaceId, targetId, {
+                email: form.email,
+                name: form.name || undefined,
+                role: form.role,
+                password: form.password || undefined,
+              });
+              setNotice(
+                res.existingAccount
+                  ? `${form.email} already had a SignalApp account, so they keep their own password and can open ${ws.name} now.`
+                  : `${form.email} can sign in now with the password you set. They can change it under Settings → Password.`,
+              );
+              setForm(EMPTY);
+              setAdding(false);
+              await refresh();
+              // The admin may have added themselves; keep the switcher in step
+              if (form.email.trim().toLowerCase() === user?.email.toLowerCase()) await refreshSwitcher();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Could not add the user");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Email">
+              <input type="email" required className={inputClass} value={form.email} onChange={set("email")} placeholder="e.g. sara@yourcompany.com" />
+            </Field>
+            <Field label="Name (optional)">
+              <input className={inputClass} value={form.name} onChange={set("name")} placeholder="e.g. Sara Khan" />
+            </Field>
+            <Field label="Password" hint="At least 8 characters. Not needed if they already have an account.">
+              <PasswordInput id="ws-user-password" autoComplete="new-password" minLength={8} value={form.password} onChange={set("password")} placeholder="Set their password" />
+            </Field>
+            <Field label="Role">
+              <select className={inputClass} value={form.role} onChange={set("role")}>
+                {ROLE_ORDER.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABELS[r]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p className="mt-3 rounded-[8px] bg-[var(--chip-bg)] px-3 py-2 text-xs text-[var(--muted)]">
+            <strong className="text-[var(--foreground)]">{ROLE_LABELS[form.role]}:</strong> {ROLE_DESCRIPTIONS[form.role]}
+          </p>
+          <div className="mt-3">
             <FormError message={error} />
-            <div className="mt-3 flex gap-2">
-              <Button type="submit" variant="primary" disabled={busy || !form.email}>
-                {busy ? "Adding…" : "Grant access"}
-              </Button>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
+          </div>
+        </form>
+      </Modal>
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { FormError } from "@/components/ui/Field";
 
-function ConnectionsView({ workspaceId }: { workspaceId: string }) {
+function UsageView({ workspaceId }: { workspaceId: string }) {
   const { can } = useWorkspace();
   const [data, setData] = useState<Connections | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +31,8 @@ function ConnectionsView({ workspaceId }: { workspaceId: string }) {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Settings"
-        title="Connections & usage"
-        description="Research provider status, this month's usage against the hard tenant cap, and the research kill switch."
+        title="Usage"
+        description="Web research status, this month's usage against your company's research cap, and the research kill switch. Connect your CRM under Settings → Connect to CRM."
       />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -80,20 +80,6 @@ function ConnectionsView({ workspaceId }: { workspaceId: string }) {
 
         <Card>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[16px]">CRM{data.crm.configured ? ` · ${data.crm.provider === "hubspot" ? "HubSpot" : data.crm.provider}` : ""}</h2>
-            {!data.crm.configured ? (
-              <Badge>Not connected</Badge>
-            ) : data.crm.enabled ? (
-              <Badge tone="green">Connected</Badge>
-            ) : (
-              <Badge tone="amber">Switched off</Badge>
-            )}
-          </div>
-          <p className="mt-2 text-sm text-[var(--muted)]">{data.crm.note}</p>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between gap-2">
             <h2 className="text-[16px]">Sending</h2>
             <Badge>Disabled</Badge>
           </div>
@@ -104,10 +90,10 @@ function ConnectionsView({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-export default function ConnectionsPage() {
+export default function UsagePage() {
   return (
     <RequireCap anyOf={["manage_settings", "research"]}>
-      {(workspaceId) => <ConnectionsView workspaceId={workspaceId} />}
+      {(workspaceId) => <UsageView workspaceId={workspaceId} />}
     </RequireCap>
   );
 }

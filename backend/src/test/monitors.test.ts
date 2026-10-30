@@ -35,12 +35,5 @@ describe("Scheduled Monitors & Change Detection", () => {
     expect(key1).not.toBe(key2);
   });
 
-  it("handles distinct run states: success, no_results, exhausted_budget, provider_outage", () => {
-    const validStates = ["success", "fresh_signals", "no_results", "exhausted_budget", "provider_outage"];
-    expect(validStates).toContain("fresh_signals");
-    expect(validStates).toContain("no_results");
-    expect(validStates).toContain("exhausted_budget");
-    expect(validStates).toContain("provider_outage");
-  });
 });
 

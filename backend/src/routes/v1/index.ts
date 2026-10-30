@@ -20,6 +20,7 @@ import { monitorsRoutes } from "./monitors.js";
 import { opportunityRoutes } from "./opportunities.js";
 import { contactRoutes } from "./contacts.js";
 import { integrationRoutes } from "./integrations.js";
+import { notificationRoutes } from "./notifications.js";
 
 export async function v1Routes(app: FastifyInstance) {
   await authRoutes(app);
@@ -43,4 +44,5 @@ export async function v1Routes(app: FastifyInstance) {
   await opportunityRoutes(app);
   await contactRoutes(app);
   await integrationRoutes(app);
+  await notificationRoutes(app);
 }

@@ -1,4 +1,3 @@
-import { getEnv } from "../../config/env.js";
 import { redactString } from "../../utils/redact.js";
 import {
   CrmError,
@@ -23,9 +22,10 @@ type Fetch = typeof fetch;
 export class HubspotCrmProvider implements CrmProvider {
   readonly name = "hubspot";
 
+  /** `token` is the company's own HubSpot private-app token, from its CRM connection (never from .env). */
   constructor(
-    private readonly token = getEnv().HUBSPOT_ACCESS_TOKEN,
-    private readonly portalId = getEnv().HUBSPOT_PORTAL_ID,
+    private readonly token: string,
+    private readonly portalId: string | null,
     private readonly fetchImpl: Fetch = fetch,
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {}
@@ -116,6 +116,18 @@ export class HubspotCrmProvider implements CrmProvider {
   }
 
   private currencyCache: { primary: string; all: string[] } | null = null;
+
+  /** Which HubSpot account this token reaches (used to confirm a connection and build record links). */
+  async describeAccount(): Promise<{ id: string; label: string }> {
+    const res = await this.request<{ portalId?: number | string; uiDomain?: string; accountType?: string }>(
+      "GET",
+      "/account-info/v3/details",
+    );
+    if (!res?.portalId) throw new CrmError("HubSpot did not say which account this token belongs to", null, false);
+    const id = String(res.portalId);
+    const kind = res.accountType ? ` (${res.accountType.toLowerCase().replace(/_/g, " ")})` : "";
+    return { id, label: `HubSpot account ${id}${kind}` };
+  }
 
   async currencies() {
     if (this.currencyCache) return this.currencyCache;

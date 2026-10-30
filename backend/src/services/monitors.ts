@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, ne, or } from "drizzle-orm";
 import { getDb } from "../db/client.js";
 import {
   changeEvents,
@@ -10,13 +10,17 @@ import {
   workspaces,
   entitlements,
   accounts,
+  providerUsage,
+  researchRuns,
 } from "../db/schema/index.js";
 import { notFound, validationError, conflict } from "../utils/errors.js";
 import { newId } from "../utils/ids.js";
-import { isSuppressed } from "./suppressions.js";
-import { isExaConfigured } from "../config/env.js";
+import { activeSuppressionSet, isSuppressed } from "./suppressions.js";
+import { persistNormalizedEvidence } from "./evidence.js";
+import { normalizeDomain } from "../utils/normalize.js";
+import { redactString } from "../utils/redact.js";
 import { getResearchProvider, isResearchConfigured } from "../providers/research/index.js";
-import { reserveResearchBudget, refundResearchBudget } from "./budget.js";
+import { reconcileUsage, reserveResearchBudget, refundResearchBudget } from "./budget.js";
 
 const PLAYBOOK_DISPLAY_NAMES: Record<string, string> = {
   infrastructure: "Infrastructure expansion",
@@ -65,7 +69,8 @@ export async function createMonitorFromPlaybook(workspaceId: string, userId: str
     .where(and(eq(playbookVersions.workspaceId, workspaceId), eq(playbookVersions.templateKey, activeTemplateKey)))
     .limit(1);
 
-  let territory: string[] = ["Texas"];
+  // The workspace's own territory; never a made-up default (spec §11)
+  let territory: string[] = [];
   if (offer?.territoryJson) {
     try {
       const parsed = JSON.parse(offer.territoryJson) as string[];
@@ -95,8 +100,6 @@ export async function createMonitorFromPlaybook(workspaceId: string, userId: str
   };
 
   const id = newId("mon");
-  // Kept unchecked (simulation) by default to protect API quota; user can check "Live Exa search" on demand
-  const isSimulation = true;
   const [created] = await db
     .insert(monitors)
     .values({
@@ -108,7 +111,8 @@ export async function createMonitorFromPlaybook(workspaceId: string, userId: str
       recipeJson: JSON.stringify(recipe),
       cadenceHours: 168, // Weekly
       status: "active",
-      isSimulation,
+      // Monitors always run live research; the column is kept only for old rows
+      isSimulation: false,
       lastSuccessAt: null,
       lastAttemptAt: null,
       lastRunStatus: null,
@@ -122,7 +126,7 @@ export async function createMonitorFromPlaybook(workspaceId: string, userId: str
 export async function updateMonitor(
   workspaceId: string,
   monitorId: string,
-  patch: { cadenceHours?: number; status?: "active" | "paused"; isSimulation?: boolean },
+  patch: { cadenceHours?: number; status?: "active" | "paused" },
 ) {
   const db = getDb();
   const [existing] = await db
@@ -146,9 +150,6 @@ export async function updateMonitor(
       throw validationError("Invalid status");
     }
     values.status = patch.status;
-  }
-  if (patch.isSimulation !== undefined) {
-    values.isSimulation = patch.isSimulation;
   }
 
   const [updated] = await db
@@ -186,7 +187,53 @@ export async function deleteMonitor(workspaceId: string, monitorId: string) {
   return { success: true };
 }
 
-export async function simulateChangeCheck(workspaceId: string, monitorId: string) {
+/** Results asked of the provider per check; also the units reserved before the call. */
+export const MONITOR_RESULTS_PER_CHECK = 5;
+
+/** A "running" lock older than this is from a crashed worker and may be taken over. */
+const STALE_LOCK_MS = 15 * 60 * 1000;
+
+/**
+ * Run states (spec R8 — each is distinct):
+ *  success          the check ran and found new material changes
+ *  no_results       the check ran and found nothing new (still a successful run)
+ *  provider_outage  the research provider failed or timed out
+ *  exhausted_budget the tenant's monthly research quota is used up
+ *  kill_switch      research is switched off for this workspace
+ *  not_configured   live research or the workspace territory isn't set up
+ *  already_running  another worker is checking this monitor right now (nothing done)
+ */
+export type MonitorRunStatus =
+  | "success"
+  | "no_results"
+  | "provider_outage"
+  | "exhausted_budget"
+  | "kill_switch"
+  | "not_configured"
+  | "already_running";
+
+const SEARCH_TERMS: Record<string, string> = {
+  recruitment: "hiring infrastructure systems engineer site reliability",
+  managed_it: "multi-site server hardware refresh IT procurement",
+  infrastructure: "data center campus expansion compute server refresh procurement",
+};
+
+const NO_COUNTS = { freshEventsCount: 0, skippedDuplicates: 0, skippedSuppressed: 0, evidenceAdded: 0 };
+
+/** True when the monitor's schedule says a check is due now. */
+export function isMonitorDue(mon: { lastAttemptAt: Date | null; cadenceHours: number }, now = Date.now()) {
+  const last = mon.lastAttemptAt ? new Date(mon.lastAttemptAt).getTime() : 0;
+  return now - last >= mon.cadenceHours * 3600 * 1000;
+}
+
+/**
+ * One check: live licensed research only (spec §11: never substitute demo data).
+ * - A per-monitor lock stops two workers checking the same monitor at once.
+ * - Budget is reserved before the provider call and reconciled to actual usage (spec §6),
+ *   recorded as a research run + provider usage like any other research.
+ * - Changes about a company already in your accounts are saved as cited evidence on it (R3).
+ */
+export async function runMonitorCheck(workspaceId: string, monitorId: string) {
   const db = getDb();
   const [mon] = await db
     .select()
@@ -195,6 +242,30 @@ export async function simulateChangeCheck(workspaceId: string, monitorId: string
     .limit(1);
 
   if (!mon) throw notFound("Monitor not found");
+
+  // Lock: claim the monitor unless another check holds a fresh "running" claim
+  const claimed = await db
+    .update(monitors)
+    .set({ lastRunStatus: "running", updatedAt: new Date() })
+    .where(
+      and(
+        eq(monitors.id, monitorId),
+        or(
+          isNull(monitors.lastRunStatus),
+          ne(monitors.lastRunStatus, "running"),
+          lt(monitors.updatedAt, new Date(Date.now() - STALE_LOCK_MS)),
+        ),
+      ),
+    )
+    .returning({ id: monitors.id });
+  if (!claimed[0]) {
+    return {
+      monitor: mon,
+      ...NO_COUNTS,
+      summary: "A check for this monitor is already running.",
+      status: "already_running" as MonitorRunStatus,
+    };
+  }
 
   const runId = newId("mrun");
   await db.insert(monitorRuns).values({
@@ -206,318 +277,170 @@ export async function simulateChangeCheck(workspaceId: string, monitorId: string
     startedAt: new Date(),
   });
 
-  // 1. Check entitlements & kill-switch (Spec §5 R8, §9)
-  const [ent] = await db
-    .select()
-    .from(entitlements)
-    .where(eq(entitlements.workspaceId, workspaceId))
-    .limit(1);
-
-  if (ent?.researchKillSwitch) {
+  /** Record the outcome on the run and the monitor (releases the lock). Any completed check counts as last success. */
+  async function finish(status: MonitorRunStatus, summary: string, counts = NO_COUNTS, error?: string) {
     const now = new Date();
+    const completed = status === "success" || status === "no_results";
     await db
       .update(monitors)
       .set({
         lastAttemptAt: now,
-        lastRunStatus: "exhausted_budget",
+        ...(completed ? { lastSuccessAt: now } : {}),
+        lastRunStatus: status,
         updatedAt: now,
       })
       .where(eq(monitors.id, monitorId));
-
     await db
       .update(monitorRuns)
-      .set({
-        status: "exhausted_budget",
-        resultSummary: "Research kill-switch active; monitoring halted.",
-        finishedAt: now,
-      })
+      .set({ status, resultSummary: summary, error: error ?? null, finishedAt: now })
       .where(eq(monitorRuns.id, runId));
-
-    const [updatedMonitor] = await db
-      .select()
-      .from(monitors)
-      .where(eq(monitors.id, monitorId))
-      .limit(1);
-
-    return {
-      monitor: updatedMonitor,
-      freshEventsCount: 0,
-      skippedDuplicates: 0,
-      skippedSuppressed: 0,
-      summary: "Research kill-switch is active; monitoring jobs halted.",
-      status: "exhausted_budget",
-    };
+    const [monitor] = await db.select().from(monitors).where(eq(monitors.id, monitorId)).limit(1);
+    return { monitor, ...counts, summary, status };
   }
 
-  // 2. Budget Reservation if Live (Spec §5 R8, §6)
-  let unitsReserved = 0;
-  if (!mon.isSimulation && isResearchConfigured()) {
-    try {
-      await reserveResearchBudget(mon.tenantId, 1);
-      unitsReserved = 1;
-    } catch {
-      const now = new Date();
-      await db
-        .update(monitors)
-        .set({
-          lastAttemptAt: now,
-          lastRunStatus: "exhausted_budget",
-          updatedAt: now,
-        })
-        .where(eq(monitors.id, monitorId));
-
-      await db
-        .update(monitorRuns)
-        .set({
-          status: "exhausted_budget",
-          resultSummary: "Monthly research quota exhausted for tenant.",
-          finishedAt: now,
-        })
-        .where(eq(monitorRuns.id, runId));
-
-      const [updatedMonitor] = await db
-        .select()
-        .from(monitors)
-        .where(eq(monitors.id, monitorId))
-        .limit(1);
-
-      return {
-        monitor: updatedMonitor,
-        freshEventsCount: 0,
-        skippedDuplicates: 0,
-        skippedSuppressed: 0,
-        summary: "Monthly research quota exhausted.",
-        status: "exhausted_budget",
-      };
-    }
+  // 1. Kill switch (spec R8, §9)
+  const [ent] = await db.select().from(entitlements).where(eq(entitlements.workspaceId, workspaceId)).limit(1);
+  if (ent?.researchKillSwitch) {
+    return finish("kill_switch", "Research is switched off for this workspace (kill switch). No check was run.");
   }
 
-  // Parse recipe for context
+  // 2. Live research and a territory are required; nothing is ever made up
+  if (!isResearchConfigured()) {
+    return finish("not_configured", "Live web research isn't connected. Add the Exa API key to run monitors.");
+  }
   let recipe: { territory?: string[]; eventWindowDays?: number; templateKey?: string } = {};
   try {
     recipe = JSON.parse(mon.recipeJson);
   } catch {
-    recipe = { territory: ["Texas"], eventWindowDays: 180 };
+    recipe = {};
+  }
+  // Country codes only (e.g. GB); older monitors may hold a made-up "Texas" default, which never matches
+  const territory = (recipe.territory ?? [])
+    .filter((c) => /^[A-Za-z]{2}$/.test(c.trim()))
+    .map((c) => c.trim().toUpperCase());
+  if (!territory.length) {
+    return finish("not_configured", "No territory set. Add one under Settings → Offer & targeting, then recreate this monitor.");
   }
 
-  const territoryStr = (recipe.territory && recipe.territory.length > 0)
-    ? recipe.territory.join(", ")
-    : "Texas";
+  // 3. Reserve budget before the call (spec §6: hard per-tenant caps)
+  const reserved = MONITOR_RESULTS_PER_CHECK;
+  try {
+    await reserveResearchBudget(mon.tenantId, reserved);
+  } catch {
+    return finish("exhausted_budget", "Monthly research quota is used up. The next check runs when the quota resets.");
+  }
 
   const templateKey = mon.playbookTemplateKey || recipe.templateKey || "infrastructure";
+  const query = `${territory.join(", ")} ${SEARCH_TERMS[templateKey] ?? SEARCH_TERMS.infrastructure}`;
+  const suppressed = await activeSuppressionSet(workspaceId);
+  const filters = {
+    countries: territory,
+    eventWindowDays: recipe.eventWindowDays ?? 90,
+    excludeDomains: [...suppressed].filter((v) => !v.includes("@")),
+  };
 
-  let candidateSignals: Array<{
-    companyName: string;
-    domain: string;
-    title: string;
-    detail: string;
-    sourceUrl: string;
-    material: boolean;
-  }> = [];
+  // The playbook version this check executes (R1: persisted with each research run)
+  const [playbook] = await db
+    .select({ id: playbookVersions.id })
+    .from(playbookVersions)
+    .where(and(eq(playbookVersions.workspaceId, workspaceId), eq(playbookVersions.templateKey, templateKey)))
+    .orderBy(desc(playbookVersions.version))
+    .limit(1);
 
-  // 3. Live Exa Web Research vs. Simulation (Spec §6 & §11)
-  if (!mon.isSimulation && isResearchConfigured()) {
-    try {
-      const provider = getResearchProvider();
-      const queryTerms =
-        templateKey === "recruitment"
-          ? "hiring infrastructure systems engineer site reliability"
-          : templateKey === "managed_it"
-          ? "multi-site server hardware refresh IT procurement"
-          : "data center campus groundbreaking expansion compute liquid cooling";
+  // The check is a research run like any other: usage, provider run ID and evidence point back to it
+  const researchRunId = newId("rr");
+  await db.insert(researchRuns).values({
+    id: researchRunId,
+    tenantId: mon.tenantId,
+    workspaceId,
+    status: "running",
+    query,
+    mode: "monitor",
+    filtersJson: JSON.stringify(filters),
+    budgetReserved: reserved,
+    playbookVersionId: playbook?.id ?? null,
+    createdBy: mon.createdBy,
+    startedAt: new Date(),
+  });
 
-      const fullQuery = `${territoryStr} ${queryTerms}`;
-      const discovery = await provider.discover(
-        fullQuery,
-        {
-          countries: recipe.territory && recipe.territory.length > 0 ? recipe.territory : undefined,
-          eventWindowDays: recipe.eventWindowDays ?? 90,
-        },
-        5,
-        "discovery",
-      );
-
-      candidateSignals = discovery.items.map((item) => {
-        const companyName = item.subject?.companyName || item.publisher || "Enterprise Infrastructure";
-        const domain = item.subject?.companyWebsite || (item.publisher ? `${item.publisher}` : "example.com");
-        return {
-          companyName,
-          domain,
-          title: item.title || `${companyName} expands infrastructure in ${territoryStr}`,
-          detail: item.excerpt || item.subject?.eventSummary || `Infrastructure signal detected for ${companyName}.`,
-          sourceUrl: item.canonicalUrl,
-          material: true,
-        };
-      });
-    } catch (err) {
-      if (unitsReserved > 0) {
-        await refundResearchBudget(mon.tenantId, unitsReserved);
-      }
-      const now = new Date();
-      const errMsg = err instanceof Error ? err.message : "Provider outage";
-      await db
-        .update(monitors)
-        .set({
-          lastAttemptAt: now,
-          lastRunStatus: "provider_outage",
-          updatedAt: now,
-        })
-        .where(eq(monitors.id, monitorId));
-
-      await db
-        .update(monitorRuns)
-        .set({
-          status: "provider_outage",
-          error: errMsg,
-          resultSummary: "Web research provider outage or timeout.",
-          finishedAt: now,
-        })
-        .where(eq(monitorRuns.id, runId));
-
-      const [updatedMonitor] = await db
-        .select()
-        .from(monitors)
-        .where(eq(monitors.id, monitorId))
-        .limit(1);
-
-      return {
-        monitor: updatedMonitor,
-        freshEventsCount: 0,
-        skippedDuplicates: 0,
-        skippedSuppressed: 0,
-        summary: "Web research provider outage or timeout.",
-        status: "provider_outage",
-      };
-    }
-  } else {
-    // Simulation mode fallback
-    const workspaceAccounts = await db
-      .select()
-      .from(accounts)
-      .where(eq(accounts.workspaceId, workspaceId))
-      .limit(5);
-
-    const acc0Name = workspaceAccounts[0]?.name ?? "Aligned Data Centers";
-    const acc0Domain = workspaceAccounts[0]?.domain ?? "aligneddc.com";
-    const acc1Name = workspaceAccounts[1]?.name ?? "Stream Data Centers";
-    const acc1Domain = workspaceAccounts[1]?.domain ?? "streamdatacenters.com";
-    const acc2Name = workspaceAccounts[2]?.name ?? "Skybox Datacenters";
-    const acc2Domain = workspaceAccounts[2]?.domain ?? "skyboxdatacenters.com";
-
-    if (templateKey === "recruitment") {
-      candidateSignals = [
-        {
-          companyName: acc0Name,
-          domain: acc0Domain,
-          title: `${acc0Name} actively hiring 25+ infrastructure & systems engineers in ${territoryStr}`,
-          detail: `Published multiple senior infrastructure engineering and platform engineering job openings supporting new facility deployment in ${territoryStr}.`,
-          sourceUrl: `https://jobs.example.com/${acc0Domain}/infrastructure-hiring-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-        {
-          companyName: acc1Name,
-          domain: acc1Domain,
-          title: `${acc1Name} appoints VP of Infrastructure to scale ${territoryStr} operations`,
-          detail: `Announced executive hiring to build out regional cloud and hardware engineering teams across ${territoryStr}.`,
-          sourceUrl: `https://news.example.com/${acc1Domain}/vp-infrastructure-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-        {
-          companyName: acc2Name,
-          domain: acc2Domain,
-          title: `${acc2Name} opens recruitment for senior datacenter site reliability engineers in ${territoryStr}`,
-          detail: `New job posts identify urgent hiring for enterprise server maintenance and high-availability operations in ${territoryStr}.`,
-          sourceUrl: `https://careers.example.com/${acc2Domain}/sre-roles-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-      ];
-    } else if (templateKey === "managed_it") {
-      candidateSignals = [
-        {
-          companyName: acc0Name,
-          domain: acc0Domain,
-          title: `${acc0Name} issues procurement RFP for multi-site enterprise IT infrastructure in ${territoryStr}`,
-          detail: `Published request for proposals covering managed hardware, server refresh cycles, and SLA support for regional branches in ${territoryStr}.`,
-          sourceUrl: `https://procurement.example.com/${acc0Domain}/managed-it-rfp-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-        {
-          companyName: acc1Name,
-          domain: acc1Domain,
-          title: `${acc1Name} initiates multi-site server hardware refresh across ${territoryStr} locations`,
-          detail: `Planning migration and managed infrastructure transition for distributed server estates in ${territoryStr}.`,
-          sourceUrl: `https://news.example.com/${acc1Domain}/server-refresh-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-      ];
-    } else {
-      candidateSignals = [
-        {
-          companyName: acc0Name,
-          domain: acc0Domain,
-          title: `${acc0Name} expands ${territoryStr} campus with 120MW facility`,
-          detail: `Announced the groundbreaking of a multi-facility expansion in ${territoryStr} to support high-density compute and liquid cooling infrastructure.`,
-          sourceUrl: `https://datacenterfrontier.example.com/${acc0Domain}/aligned-expansion-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-        {
-          companyName: acc1Name,
-          domain: acc1Domain,
-          title: `${acc1Name} acquires 200 acres in ${territoryStr} for hyperscale cloud deployment`,
-          detail: `Acquisition of 200-acre tract in ${territoryStr} for purpose-built enterprise server clusters and high-density compute infrastructure.`,
-          sourceUrl: `https://news.example.com/${acc1Domain}/stream-expansion-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-        {
-          companyName: acc2Name,
-          domain: acc2Domain,
-          title: `${acc2Name} breaks ground on 100MW campus in ${territoryStr}`,
-          detail: `New construction begun on enterprise compute and server migration facilities targeting high-performance workloads in ${territoryStr}.`,
-          sourceUrl: `https://techwire.example.com/${acc2Domain}/groundbreaking-${territoryStr.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-          material: true,
-        },
-      ];
-    }
+  // 4. Live provider call; failures give the reservation back
+  const provider = getResearchProvider();
+  let discovery;
+  try {
+    discovery = await provider.discover(query, filters, reserved, "discovery");
+  } catch (err) {
+    await refundResearchBudget(mon.tenantId, reserved);
+    const message = redactString(err instanceof Error ? err.message : "Provider outage");
+    await db
+      .update(researchRuns)
+      .set({ status: "failed", errorCode: "provider_error", errorMessage: message, budgetActual: 0, completedAt: new Date() })
+      .where(eq(researchRuns.id, researchRunId));
+    return finish("provider_outage", "The web research provider failed or timed out. Nothing was charged.", NO_COUNTS, message);
   }
+
+  // 5. Charge what the provider actually used, whether or not anything new turns up
+  const usage = await provider.reportUsage(discovery, reserved);
+  await db.insert(providerUsage).values({
+    id: newId("pug"),
+    tenantId: mon.tenantId,
+    workspaceId,
+    researchRunId,
+    provider: provider.name,
+    requestRef: usage.requestRef,
+    units: usage.units,
+  });
+  await reconcileUsage(mon.tenantId, reserved, usage.units);
 
   let freshEventsCount = 0;
   let skippedSuppressed = 0;
   let skippedDuplicates = 0;
+  let evidenceAdded = 0;
 
-  for (const sig of candidateSignals) {
-    // 4. Suppression Check (Spec §4, §9)
-    const suppressed = await isSuppressed(workspaceId, sig.domain);
-    if (suppressed) {
+  for (const item of discovery.items) {
+    const domain = normalizeDomain(item.subject?.companyWebsite ?? "") ?? null;
+    const title = item.title?.trim() || item.subject?.eventSummary?.trim() || item.canonicalUrl;
+
+    // Suppression (spec §4, §9)
+    if (domain && (await isSuppressed(workspaceId, domain))) {
       skippedSuppressed++;
       continue;
     }
 
-    // 5. Deduplication Check (Spec §5 R8, §7)
-    const dedupeKey = generateDedupeKey(sig.domain, sig.sourceUrl, sig.title);
+    // Deduplicate alerts (spec R8)
+    const dedupeKey = generateDedupeKey(domain ?? "", item.canonicalUrl, title);
     const [existingEvent] = await db
       .select({ id: changeEvents.id })
       .from(changeEvents)
       .where(and(eq(changeEvents.workspaceId, workspaceId), eq(changeEvents.dedupeKey, dedupeKey)))
       .limit(1);
-
     if (existingEvent) {
       skippedDuplicates++;
       continue;
     }
 
-    // 6. Match account if exists
     let matchedAccountId: string | null = null;
-    const [matchedAcc] = await db
-      .select({ id: accounts.id })
-      .from(accounts)
-      .where(and(eq(accounts.workspaceId, workspaceId), eq(accounts.domain, sig.domain)))
-      .limit(1);
-
-    if (matchedAcc) {
-      matchedAccountId = matchedAcc.id;
+    if (domain) {
+      const [matchedAcc] = await db
+        .select({ id: accounts.id })
+        .from(accounts)
+        .where(and(eq(accounts.workspaceId, workspaceId), eq(accounts.domain, domain)))
+        .limit(1);
+      matchedAccountId = matchedAcc?.id ?? null;
     }
 
-    // 7. Insert change event
+    // A change about one of your accounts becomes cited evidence on it (same rules as research: dedupe, dates, source)
+    if (matchedAccountId) {
+      const saved = await persistNormalizedEvidence({
+        tenantId: mon.tenantId,
+        workspaceId,
+        accountId: matchedAccountId,
+        researchRunId,
+        items: [{ ...item, matchRationale: item.matchRationale ?? `Monitor "${mon.name}" matched the company website ${domain}` }],
+      });
+      evidenceAdded += saved.created;
+    }
+
+    const detail = item.excerpt?.trim() || item.subject?.eventSummary?.trim() || null;
     await db.insert(changeEvents).values({
       id: newId("che"),
       tenantId: mon.tenantId,
@@ -525,59 +448,32 @@ export async function simulateChangeCheck(workspaceId: string, monitorId: string
       monitorId,
       accountId: matchedAccountId,
       dedupeKey,
-      title: sig.title,
-      detail: `${sig.detail} Source: ${sig.sourceUrl}`,
-      material: sig.material,
+      title,
+      detail: [detail, `Source: ${item.canonicalUrl}`].filter(Boolean).join(" "),
+      material: true,
       discoveredAt: new Date(),
     });
-
     freshEventsCount++;
   }
 
-  // If no new events were found and we reserved units, refund the reservation
-  if (freshEventsCount === 0 && unitsReserved > 0) {
-    await refundResearchBudget(mon.tenantId, unitsReserved);
-  }
-
-  const now = new Date();
-  const runStatus = freshEventsCount > 0 ? "success" : "no_results";
-  const resultSummary = `Discovered ${freshEventsCount} fresh material signals. ${skippedDuplicates} duplicate(s) filtered, ${skippedSuppressed} suppressed.`;
-
-  // 8. Update monitor record: preserve lastSuccessAt if no new material signals (Spec §5 R8)
+  const counts = { freshEventsCount, skippedDuplicates, skippedSuppressed, evidenceAdded };
+  const summary =
+    `Found ${freshEventsCount} new change${freshEventsCount === 1 ? "" : "s"}` +
+    (evidenceAdded ? `, ${evidenceAdded} saved as evidence on your accounts` : "") +
+    `. ${skippedDuplicates} duplicate(s) filtered, ${skippedSuppressed} suppressed. ` +
+    `${usage.units} research unit${usage.units === 1 ? "" : "s"} used.`;
   await db
-    .update(monitors)
+    .update(researchRuns)
     .set({
-      lastAttemptAt: now,
-      ...(freshEventsCount > 0 ? { lastSuccessAt: now } : {}),
-      lastRunStatus: runStatus,
-      updatedAt: now,
+      status: "completed",
+      progressPct: 100,
+      providerRunId: discovery.providerRunId,
+      budgetActual: usage.units,
+      resultJson: JSON.stringify({ stage: "done", monitorId, ...counts, noResults: discovery.items.length === 0 }),
+      completedAt: new Date(),
     })
-    .where(eq(monitors.id, monitorId));
-
-  // 9. Update monitor run record
-  await db
-    .update(monitorRuns)
-    .set({
-      status: runStatus,
-      resultSummary,
-      finishedAt: now,
-    })
-    .where(eq(monitorRuns.id, runId));
-
-  const [updatedMonitor] = await db
-    .select()
-    .from(monitors)
-    .where(eq(monitors.id, monitorId))
-    .limit(1);
-
-  return {
-    monitor: updatedMonitor,
-    freshEventsCount,
-    skippedDuplicates,
-    skippedSuppressed,
-    summary: resultSummary,
-    status: runStatus,
-  };
+    .where(eq(researchRuns.id, researchRunId));
+  return finish(freshEventsCount > 0 ? "success" : "no_results", summary, counts);
 }
 
 export async function listChangeEvents(workspaceId: string, monitorId?: string) {
@@ -595,32 +491,10 @@ export async function listChangeEvents(workspaceId: string, monitorId?: string) 
     .limit(50);
 }
 
-/**
- * Background worker task: checks all active monitors across workspaces and runs due checks
- */
-export async function runDueMonitors() {
+/** Active monitors whose schedule says a check is due (the worker queues one job for each). */
+export async function findDueMonitors() {
   const db = getDb();
-  const allActive = await db
-    .select()
-    .from(monitors)
-    .where(eq(monitors.status, "active"));
-
+  const active = await db.select().from(monitors).where(eq(monitors.status, "active"));
   const now = Date.now();
-  let executedCount = 0;
-
-  for (const m of allActive) {
-    const lastAttempt = m.lastAttemptAt ? new Date(m.lastAttemptAt).getTime() : 0;
-    const intervalMs = m.cadenceHours * 3600 * 1000;
-    // Check if the monitor has never run or if the interval elapsed
-    if (now - lastAttempt >= intervalMs) {
-      try {
-        await simulateChangeCheck(m.workspaceId, m.id);
-        executedCount++;
-      } catch (err) {
-        console.error(`[monitor-runner] error running monitor ${m.id}:`, err);
-      }
-    }
-  }
-
-  return { executedCount, totalActive: allActive.length };
+  return active.filter((m) => isMonitorDue(m, now));
 }

@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { getDb } from "../db/client.js";
 import {
@@ -98,6 +98,8 @@ async function researcherReport(m: MembershipContext, workspaceId: string, { fro
       and(
         scope(researchRuns),
         eq(researchRuns.createdBy, m.userId),
+        // Scheduled monitor checks run on their own; they aren't this person's activity
+        ne(researchRuns.mode, "monitor"),
         gte(researchRuns.createdAt, fromDate),
         lte(researchRuns.createdAt, toDate),
       ),

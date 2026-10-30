@@ -47,4 +47,39 @@ export function startCrmSync(accountId: string, workspaceId: string) {
   return api<CrmAccountStatus>(`/v1/accounts/${accountId}/crm/sync${q(workspaceId)}`, { method: "POST" });
 }
 
-export const CRM_PROVIDER_LABELS: Record<string, string> = { hubspot: "HubSpot" };
+export const CRM_PROVIDER_LABELS: Record<string, string> = { hubspot: "HubSpot", salesforce: "Salesforce", other: "Other CRM" };
+
+/* ---------------- The company's CRM connection (Settings → Connections & usage) ---------------- */
+
+export type CrmCatalogEntry = { key: "hubspot" | "salesforce" | "other"; name: string; available: boolean; credentialHelp: string };
+
+/** The company's CRM connection as the browser may see it: never the credential, only its last 4 characters. */
+export type CrmConnection = {
+  provider: string;
+  providerName: string;
+  status: "connected" | "failed";
+  credentialHint: string;
+  accountLabel: string | null;
+  lastCheckedAt: string | null;
+  lastError: string | null;
+  connectedAt: string;
+  connectedByName: string | null;
+};
+
+const base = (workspaceId: string) => `/v1/workspaces/${workspaceId}/crm-connection`;
+
+export function getCrmConnection(workspaceId: string) {
+  return api<{ connection: CrmConnection | null; catalog: CrmCatalogEntry[] }>(base(workspaceId));
+}
+
+export function connectCrm(workspaceId: string, provider: string, credential: string) {
+  return api<{ connection: CrmConnection }>(base(workspaceId), { method: "PUT", body: JSON.stringify({ provider, credential }) });
+}
+
+export function testCrmConnection(workspaceId: string) {
+  return api<{ connection: CrmConnection }>(`${base(workspaceId)}/test`, { method: "POST", body: "{}" });
+}
+
+export function disconnectCrm(workspaceId: string) {
+  return api<{ connection: null }>(base(workspaceId), { method: "DELETE" });
+}

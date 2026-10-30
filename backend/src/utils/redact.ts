@@ -4,7 +4,7 @@ const SECRET_VALUE =
 
 /** Configured secret values are redacted literally, whatever their shape (gate 12). */
 function configuredSecrets(): string[] {
-  return [process.env.EXA_API_KEY, process.env.AUTH_SECRET, process.env.HUBSPOT_ACCESS_TOKEN]
+  return [process.env.EXA_API_KEY, process.env.AUTH_SECRET, process.env.SECRETS_ENCRYPTION_KEY]
     .map((s) => s?.trim())
     .filter((s): s is string => Boolean(s && s.length >= 8));
 }

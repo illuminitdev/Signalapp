@@ -2,7 +2,7 @@
 
 import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { useCallback, useEffect, useState } from "react";
-import { CircleCheck, CircleDashed, RotateCcw } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, RotateCcw } from "lucide-react";
 import { RequireCap } from "@/components/common/RequireCap";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { PeoplePanel } from "@/components/accounts/PeoplePanel";
@@ -27,30 +27,66 @@ import { formatDate } from "@/lib/utils/dates";
 
 const STEPS: GuideStep[] = [
   { key: "pick", label: "Pick a lead" },
-  { key: "evidence", label: "Check evidence" },
+  { key: "evidence", label: "Check evidence *" },
   { key: "brief", label: "Fill the brief" },
   { key: "people", label: "People" },
   { key: "submit", label: "Send for review" },
 ];
 
-function Check({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+function Check({ ok, required, children }: { ok: boolean; required?: boolean; children: React.ReactNode }) {
+  const missing = !ok && required;
   return (
     <li className="flex items-start gap-2 text-sm">
       {ok ? (
         <CircleCheck size={17} className="mt-0.5 shrink-0 text-[var(--badge-green-fg)]" aria-hidden />
+      ) : missing ? (
+        <CircleAlert size={17} className="mt-0.5 shrink-0 text-[var(--red)]" aria-hidden />
       ) : (
         <CircleDashed size={17} className="mt-0.5 shrink-0 text-[var(--muted)]" aria-hidden />
       )}
-      <span className={ok ? "" : "text-[var(--muted)]"}>{children}</span>
+      <span className={ok ? "" : missing ? "font-semibold text-[var(--red)]" : "text-[var(--muted)]"}>
+        {children}
+        {missing ? " — required" : ""}
+      </span>
     </li>
   );
 }
+
+/** Red "must do" box, or green once it's done. */
+function RequiredBox({ done, title, children }: { done: boolean; title: string; children: React.ReactNode }) {
+  return (
+    <div
+      role={done ? "status" : "alert"}
+      className={`mb-5 flex items-start gap-2.5 rounded-[10px] border px-4 py-3 text-sm ${
+        done
+          ? "border-transparent bg-[var(--badge-green-bg)] text-[var(--badge-green-fg)]"
+          : "border-[var(--red)] bg-[var(--red-tint)] text-[var(--red-active)]"
+      }`}
+    >
+      {done ? <CircleCheck size={17} className="mt-0.5 shrink-0" aria-hidden /> : <CircleAlert size={17} className="mt-0.5 shrink-0" aria-hidden />}
+      <span>
+        <strong>{done ? "Done: " : "Required: "}</strong>
+        {title}
+        {children ? <span className="mt-0.5 block font-normal">{children}</span> : null}
+      </span>
+    </div>
+  );
+}
+
+/** Tag on a lead this researcher already sent: what the reviewer has done with it since. */
+const SENT_LABELS: Record<string, string> = {
+  ready_for_review: "Sent for review",
+  accepted: "Sent · Accepted",
+  rejected: "Sent · Rejected",
+};
 
 function QualifyGuide({ workspaceId }: { workspaceId: string }) {
   const { can, user } = useWorkspace();
   const [accountId, setAccountId] = usePersistentState<string | null>(`${workspaceId}:qualify:account`, null);
   const [rows, setRows] = useState<PipelineRow[] | null>(null);
   const [myTasks, setMyTasks] = useState<Task[]>([]);
+  // Research tasks this person already finished by sending the lead for review
+  const [sentTasks, setSentTasks] = useState<Task[]>([]);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [reviewers, setReviewers] = useState<Array<{ userId: string; name: string }>>([]);
   const [reviewerId, setReviewerId] = useState("");
@@ -64,8 +100,15 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
     void getPipeline(workspaceId).then((r) => setRows(r.rows)).catch(() => setRows([]));
     if (user) {
       void listTasks(workspaceId, { ownerUserId: user.id })
-        .then((r) => setMyTasks(r.tasks.filter((t) => t.type === "research" && (t.status === "open" || t.status === "in_progress"))))
-        .catch(() => setMyTasks([]));
+        .then((r) => {
+          const research = r.tasks.filter((t) => t.type === "research");
+          setMyTasks(research.filter((t) => t.status === "open" || t.status === "in_progress"));
+          setSentTasks(research.filter((t) => t.status === "completed"));
+        })
+        .catch(() => {
+          setMyTasks([]);
+          setSentTasks([]);
+        });
     }
     void listPeople(workspaceId)
       .then((r) => setReviewers(r.people.filter((p) => p.role === "sales_reviewer" || p.role === "tenant_admin")))
@@ -93,10 +136,13 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
   }, [loadBrief]);
 
   const taskFor = new Map(myTasks.map((t) => [t.accountId, t]));
-  // My research tasks first, then anything new or returned for more research
+  const sentFor = new Map(sentTasks.map((t) => [t.accountId, t]));
+  const isOpenState = (state: string) => state === "draft" || state === "needs_research";
+  // Order: my open tasks, then new or returned leads, then leads I already sent for review (kept so I can see they're done)
+  const rank = (r: PipelineRow) => (taskFor.has(r.accountId) ? 0 : isOpenState(r.acceptanceState) ? 1 : 2);
   const candidates = (rows ?? [])
-    .filter((r) => taskFor.has(r.accountId) || r.acceptanceState === "draft" || r.acceptanceState === "needs_research")
-    .sort((a, b) => Number(taskFor.has(b.accountId)) - Number(taskFor.has(a.accountId)));
+    .filter((r) => taskFor.has(r.accountId) || isOpenState(r.acceptanceState) || sentFor.has(r.accountId))
+    .sort((a, b) => rank(a) - rank(b));
   const task = accountId ? taskFor.get(accountId) : undefined;
   const editable = brief ? ["draft", "needs_research"].includes(brief.account.acceptanceState) : false;
   const reviewed = brief?.evidence.filter((e) => e.reviewedAt).length ?? 0;
@@ -109,7 +155,9 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
   );
   const alreadyDone = brief && !editable && !submitted ? lastDecision : undefined;
 
-  const reachable = submitted ? 4 : brief ? 4 : 0;
+  // Sales review needs at least one reviewed source (spec R5): the steps after "Check evidence" open once one is reviewed
+  const evidenceOk = reviewed > 0 || !editable;
+  const reachable = submitted ? 4 : brief ? (evidenceOk ? 4 : 1) : 0;
   const flow = useGuidedFlow(`${workspaceId}:qualify`, STEPS.length, reachable);
 
   async function submit() {
@@ -178,20 +226,31 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
               label="leads"
               items={candidates.map((r) => {
                 const t = taskFor.get(r.accountId);
+                const sent = !t && !isOpenState(r.acceptanceState) ? sentFor.get(r.accountId) : undefined;
                 return {
                   id: r.accountId,
                   title: r.name,
                   badge: (
                     <>
                       <StatusBadge status={r.acceptanceState} />
-                      {!["draft", "needs_research"].includes(r.acceptanceState) ? (
+                      {sent ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-[var(--badge-green-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--badge-green-fg)]">
+                          <CircleCheck size={12} aria-hidden /> {SENT_LABELS[r.acceptanceState] ?? "Sent for review"}
+                        </span>
+                      ) : !isOpenState(r.acceptanceState) ? (
                         <span className="rounded bg-[var(--badge-green-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--badge-green-fg)]">Already done</span>
                       ) : null}
                       {t ?<span className="rounded bg-[var(--badge-blue-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--badge-blue-fg)]">Your task</span> : null}
                     </>
                   ),
-                  subtitle: t?.instruction ?? (r.nextAction ? `Next: ${r.nextAction}` : undefined),
-                  meta: t?.dueAt ? `Due ${formatDate(t.dueAt)}` : undefined,
+                  subtitle: sent
+                    ? "You sent this to a sales reviewer. Nothing more to do unless they return it."
+                    : (t?.instruction ?? (r.nextAction ? `Next: ${r.nextAction}` : undefined)),
+                  meta: sent?.updatedAt
+                    ? `Sent ${formatDate(sent.updatedAt)}`
+                    : t?.dueAt
+                      ? `Due ${formatDate(t.dueAt)}`
+                      : undefined,
                 };
               })}
               selectedId={accountId}
@@ -215,8 +274,28 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
           why="Each source is untrusted web data. Open it, check it really is about this company, then mark it reviewed. Only reviewed evidence counts when the brief is accepted."
           onBack={flow.back}
           onNext={flow.next}
-          nextDisabledReason={brief.evidence.length ? null : "This lead has no evidence yet. Run research first"}
+          nextDisabledReason={
+            !brief.evidence.length
+              ? "This lead has no evidence yet. Run research first"
+              : !evidenceOk
+                ? "Mark at least one source as reviewed to continue"
+                : null
+          }
         >
+          <RequiredBox
+            done={evidenceOk}
+            title={
+              evidenceOk
+                ? `${reviewed} source${reviewed === 1 ? "" : "s"} reviewed. You can continue.`
+                : "mark at least one source as reviewed before you can continue."
+            }
+          >
+            {evidenceOk
+              ? null
+              : brief.evidence.length
+                ? `Open a source below, check it's really about ${name}, then press "Mark reviewed". A sales reviewer can only accept a brief with reviewed evidence.`
+                : "There's no evidence yet. Press \"Run research\" below to find sources first."}
+          </RequiredBox>
           {returned ? (
             <div className="mb-5 flex items-start gap-2.5 rounded-[10px] bg-[var(--badge-amber-bg)] px-4 py-3 text-sm text-[var(--badge-amber-fg)]">
               <RotateCcw size={16} className="mt-0.5 shrink-0" aria-hidden />
@@ -364,10 +443,19 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
             <>
               <TourHint id="qualify.submit">Check the list, write the rationale, choose a reviewer and press <strong>Send for review</strong>.</TourHint>
               <ul className="mb-5 space-y-2">
-                <Check ok={brief.evidence.length > 0}>{brief.evidence.length} source{brief.evidence.length === 1 ? "" : "s"} collected</Check>
-                <Check ok={reviewed > 0}>{reviewed} source{reviewed === 1 ? "" : "s"} reviewed (a reviewer needs at least one to accept)</Check>
+                <Check ok={brief.evidence.length > 0} required>{brief.evidence.length} source{brief.evidence.length === 1 ? "" : "s"} collected</Check>
+                <Check ok={reviewed > 0} required>
+                  {reviewed} source{reviewed === 1 ? "" : "s"} reviewed (a reviewer needs at least one to accept)
+                </Check>
                 <Check ok={known > 0}>{known} brief fact{known === 1 ? "" : "s"} filled in (the rest stay Unknown)</Check>
               </ul>
+              {reviewed === 0 ? (
+                <RequiredBox done={false} title="mark at least one evidence source as reviewed.">
+                  <button type="button" onClick={() => flow.goTo(1)} className="mt-1 font-semibold underline">
+                    Go to Check the evidence →
+                  </button>
+                </RequiredBox>
+              ) : null}
               <div className="grid gap-4">
                 <Field label="Why is this account worth sales time?" required>
                   <textarea
@@ -392,12 +480,20 @@ function QualifyGuide({ workspaceId }: { workspaceId: string }) {
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <Button
                   variant="primary"
-                  disabled={busy || !editable || !note.trim() || (Boolean(task) && !reviewerId) || !can("submit_review")}
+                  disabled={busy || !editable || reviewed === 0 || !note.trim() || (Boolean(task) && !reviewerId) || !can("submit_review")}
                   onClick={() => void submit()}
                 >
                   {busy ? "Sending…" : "Send for review"}
                 </Button>
-                {!editable ? <span className="text-sm text-[var(--muted)]">This lead is {humanize(brief.account.acceptanceState).toLowerCase()}.</span> : null}
+                {!editable ? (
+                  <span className="text-sm text-[var(--muted)]">This lead is {humanize(brief.account.acceptanceState).toLowerCase()}.</span>
+                ) : reviewed === 0 ? (
+                  <span className="text-sm font-medium text-[var(--red)]">Review at least one source first</span>
+                ) : !note.trim() ? (
+                  <span className="text-sm text-[var(--muted)]">Write why it&apos;s worth sales time</span>
+                ) : task && !reviewerId ? (
+                  <span className="text-sm text-[var(--muted)]">Choose a reviewer</span>
+                ) : null}
               </div>
               <div className="mt-3">
                 <FormError message={error} />

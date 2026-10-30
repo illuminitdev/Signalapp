@@ -41,3 +41,35 @@ export const crmMappings = pgTable(
     index("crm_mappings_workspace_idx").on(t.workspaceId),
   ],
 );
+
+/** CRMs a company can connect. Only HubSpot has an adapter today; the others are listed as coming soon. */
+export const crmProviders = ["hubspot", "salesforce", "other"] as const;
+export type CrmProviderKey = (typeof crmProviders)[number];
+
+/**
+ * A company's own CRM connection (one per tenant). The credential is encrypted at rest and never
+ * returned to the browser; only its last four characters are kept for display.
+ */
+export const crmConnections = pgTable(
+  "crm_connections",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    provider: text("provider").notNull().$type<CrmProviderKey>(),
+    encryptedCredential: text("encrypted_credential").notNull(),
+    credentialHint: text("credential_hint").notNull(),
+    /** The CRM account it reached, e.g. a HubSpot portal id, for "Connected to …" and "Open in CRM" links */
+    externalAccountId: text("external_account_id"),
+    externalAccountLabel: text("external_account_label"),
+    /** connected | failed (last check could not reach the CRM with this credential) */
+    status: text("status").notNull().default("connected"),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    connectedBy: text("connected_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("crm_connections_tenant_uidx").on(t.tenantId)],
+);

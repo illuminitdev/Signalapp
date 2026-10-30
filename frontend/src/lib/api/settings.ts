@@ -67,7 +67,7 @@ export type Connections = {
   research: { provider: string; configured: boolean };
   usage: { quotaMonthly: number; usedMonthly: number; periodStart: string | null };
   entitlements: { researchEnabled: boolean; researchKillSwitch: boolean };
-  crm: { provider: string; configured: boolean; enabled: boolean; note: string };
+  crm: { provider: string | null; configured: boolean; accountLabel?: string | null; enabled: boolean; note: string };
   sending: { enabled: boolean; note: string };
 };
 

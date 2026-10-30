@@ -10,10 +10,12 @@ export type PlatformCompany = {
   members: number;
   membersByRole: Record<string, number>;
   accounts: number;
+  /** The CRM this company connected, or null */
+  crm: { provider: string; status: string; accountLabel: string | null; connectedAt: string; lastCheckedAt: string | null } | null;
 };
 
 export type PlatformOverview = {
-  totals: { companies: number; workspaces: number; members: number; accounts: number };
+  totals: { companies: number; workspaces: number; members: number; accounts: number; crmConnected: number };
   companies: PlatformCompany[];
 };
 

@@ -624,10 +624,18 @@ describe.skipIf(!enabled)("Phase 1 release gates", () => {
     expect(view.handoff.reason).toBeUndefined();
     expect(view.evidence).toEqual([]);
     expect(view.facts).toEqual([]);
+
+    // Bell: the partner is told about the share; replies reach the reviewer, never other roles
+    const bell = async (who: string) =>
+      ((await call(who, "GET", `/v1/workspaces/${ws.A.workspaceId}/notifications`)).json().items as Array<{ key: string; count: number }>);
+    expect((await bell("partner")).find((i) => i.key === "handoffs_shared")?.count).toBeGreaterThan(0);
     expect(
       (await call("partner", "POST", `/v1/handoffs/${handoffId}/transition`, { workspaceId: ws.A.workspaceId, toState: "acknowledged" }))
         .statusCode,
     ).toBe(200);
+    expect((await bell("reviewer")).find((i) => i.key === "handoff_replies")?.count).toBeGreaterThan(0);
+    expect((await bell("sdr")).some((i) => i.key === "handoff_replies")).toBe(false);
+    expect((await bell("analyst")).some((i) => i.key === "handoff_replies" || i.key === "handoffs_shared")).toBe(false);
     expect(
       (await call("partner", "POST", `/v1/handoffs/${handoffId}/transition`, { workspaceId: ws.A.workspaceId, toState: "closed" }))
         .statusCode,
@@ -712,6 +720,108 @@ describe.skipIf(!enabled)("Phase 1 release gates", () => {
     await call("admin", "GET", `/v1/workspaces/${ws.A.workspaceId}/settings/connections`);
     await call("admin", "GET", "/health");
     for (const body of allBodies) expect(body).not.toContain(FAKE_EXA_KEY);
+  });
+
+  it("monitors: live research only, budget reconciled, evidence on matched accounts, locked, distinct states (R8)", async () => {
+    const { runMonitorCheck } = await import("../services/monitors.js");
+    const { handleMonitorCheck } = await import("../jobs/monitorQueue.js");
+    const { newId } = await import("../utils/ids.js");
+    const { eq } = await import("drizzle-orm");
+
+    // Own tenant so quota numbers are exact
+    const tenantId = newId("ten");
+    const workspaceId = newId("ws");
+    await db.insert(schema.tenants).values({ id: tenantId, name: "Monitor tenant", researchQuotaMonthly: 6 });
+    await db.insert(schema.workspaces).values({ id: workspaceId, tenantId, name: "Monitor WS" });
+    const makeMonitor = async (territory: string[]) => {
+      const id = newId("mon");
+      await db.insert(schema.monitors).values({
+        id,
+        tenantId,
+        workspaceId,
+        name: "Infrastructure expansion",
+        recipeJson: JSON.stringify({ territory, eventWindowDays: 90, templateKey: "infrastructure" }),
+        createdBy: userIds.admin!,
+      });
+      return id;
+    };
+    const used = async () =>
+      (await db.select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)))[0]!.researchUsedMonthly;
+
+    const monitorId = await makeMonitor(["GB"]);
+    // An existing account the first result is about
+    const accountId = newId("acc");
+    await db.insert(schema.accounts).values({ id: accountId, tenantId, workspaceId, name: "Acme", domain: "acme-monitor.co.uk" });
+    provider.items = [
+      ukItem(901, { subject: { companyName: "Acme", companyWebsite: "acme-monitor.co.uk", eventSummary: null } }),
+      ukItem(902),
+    ];
+
+    // 1. New changes: only what the provider returned is recorded; 2 of 5 reserved units charged
+    let r = await runMonitorCheck(workspaceId, monitorId);
+    expect(r.status).toBe("success");
+    expect(r.freshEventsCount).toBe(2);
+    expect(await used()).toBe(2);
+    const events = await db.select().from(schema.changeEvents).where(eq(schema.changeEvents.monitorId, monitorId));
+    expect(events.map((e) => e.title).sort()).toEqual(provider.items.map((i) => i.title).sort());
+    expect(events.every((e) => e.detail?.includes("https://news.example.co.uk/story-"))).toBe(true);
+    // The matched company's change is cited evidence on its account, tied to a research run with usage
+    expect(r.evidenceAdded).toBe(1);
+    expect(events.find((e) => e.accountId === accountId)).toBeTruthy();
+    const ev = await db.select().from(schema.evidence).where(eq(schema.evidence.accountId, accountId));
+    expect(ev).toHaveLength(1);
+    const [rr] = await db.select().from(schema.researchRuns).where(eq(schema.researchRuns.id, ev[0]!.researchRunId!));
+    expect(rr!.mode).toBe("monitor");
+    expect(rr!.budgetActual).toBe(2);
+    const usageRows = await db.select().from(schema.providerUsage).where(eq(schema.providerUsage.researchRunId, rr!.id));
+    expect(usageRows.map((u) => u.units)).toEqual([2]);
+
+    // 2. Same results again: duplicates filtered, still a successful run, and the real call is still charged
+    r = await runMonitorCheck(workspaceId, monitorId);
+    expect(r.status).toBe("no_results");
+    expect(r.skippedDuplicates).toBe(2);
+    expect(r.monitor!.lastSuccessAt).not.toBeNull();
+    expect(await used()).toBe(4);
+
+    // Lock: while another worker holds a fresh "running" claim, a second check does nothing
+    await db.update(schema.monitors).set({ lastRunStatus: "running", updatedAt: new Date() }).where(eq(schema.monitors.id, monitorId));
+    const callsLocked = provider.calls;
+    r = await runMonitorCheck(workspaceId, monitorId);
+    expect(r.status).toBe("already_running");
+    expect(provider.calls).toBe(callsLocked);
+    await db.update(schema.monitors).set({ lastRunStatus: "no_results" }).where(eq(schema.monitors.id, monitorId));
+
+    // A queued copy of the job that arrives after the check already ran is skipped (not due yet)
+    await handleMonitorCheck({ workspaceId, monitorId });
+    expect(provider.calls).toBe(callsLocked);
+    expect(await used()).toBe(4);
+
+    // 3. Quota can't cover another reservation: no provider call, nothing charged
+    const callsBefore = provider.calls;
+    r = await runMonitorCheck(workspaceId, monitorId);
+    expect(r.status).toBe("exhausted_budget");
+    expect(provider.calls).toBe(callsBefore);
+    expect(await used()).toBe(4);
+
+    // 4. Provider failure: distinct state, reservation given back
+    await db.update(schema.tenants).set({ researchQuotaMonthly: 100 }).where(eq(schema.tenants.id, tenantId));
+    provider.failNext = new Error("timeout");
+    r = await runMonitorCheck(workspaceId, monitorId);
+    expect(r.status).toBe("provider_outage");
+    expect(await used()).toBe(4);
+
+    // 5. A territory that isn't a country code (old "Texas" default) never runs on made-up input
+    const badMonitor = await makeMonitor(["Texas"]);
+    r = await runMonitorCheck(workspaceId, badMonitor);
+    expect(r.status).toBe("not_configured");
+
+    // 6. Kill switch stops the check before any call
+    await db.insert(schema.entitlements).values({ id: newId("ent"), tenantId, workspaceId, researchKillSwitch: true });
+    const callsBeforeKill = provider.calls;
+    r = await runMonitorCheck(workspaceId, monitorId);
+    expect(r.status).toBe("kill_switch");
+    expect(provider.calls).toBe(callsBeforeKill);
+    expect(await used()).toBe(4);
   });
 });
 

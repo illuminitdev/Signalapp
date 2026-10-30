@@ -9,7 +9,7 @@ import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { usePagination } from "@/components/ui/Pagination";
@@ -113,14 +113,18 @@ function Workspaces({ workspaceId }: { workspaceId: string }) {
         title="Workspaces"
         description="Every workspace in your company. Each one has its own accounts, offer, settings and users. A new workspace starts empty."
         actions={
-          !adding ? (
-            <Button variant="primary" onClick={() => setAdding(true)}>
-              <span className="inline-flex items-center gap-1.5">
-                <Plus size={16} aria-hidden />
-                Add workspace
-              </span>
-            </Button>
-          ) : null
+          <Button
+            variant="primary"
+            onClick={() => {
+              setFormError(null);
+              setAdding(true);
+            }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Plus size={16} aria-hidden />
+              Add workspace
+            </span>
+          </Button>
         }
       />
 
@@ -142,49 +146,49 @@ function Workspaces({ workspaceId }: { workspaceId: string }) {
         </div>
       ) : null}
 
-      {adding ? (
-        <Card accent>
-          <form
-            className="space-y-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setFormError(null);
-              setCreated(null);
-              try {
-                const res = await createCompanyWorkspace(workspaceId, name);
-                setCreated({ name, admins: res.adminEmails });
-                setName("");
-                setAdding(false);
-                await Promise.all([refresh(), refreshSwitcher()]);
-              } catch (err) {
-                setFormError(err instanceof Error ? err.message : "Could not add the workspace");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <h2 className="text-[15px]">Add a workspace</h2>
-            <p className="text-sm text-[var(--muted)]">
-              Every tenant admin in your company gets admin access to it. Add other users from the workspace once it&apos;s created.
-            </p>
-            <div className="max-w-md">
-              <Field label="Workspace name">
-                <input id="new-ws-name" required autoFocus className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ireland Sales" />
-              </Field>
-            </div>
+      <Modal
+        open={adding}
+        onClose={() => setAdding(false)}
+        title="Add a workspace"
+        description="Every tenant admin in your company gets admin access to it. Add other users from the workspace once it's created."
+        size="sm"
+        footer={
+          <>
+            <Button onClick={() => setAdding(false)}>Cancel</Button>
+            <Button type="submit" form="add-workspace-form" variant="primary" disabled={busy || !name.trim()}>
+              {busy ? "Creating…" : "Create workspace"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="add-workspace-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setFormError(null);
+            setCreated(null);
+            try {
+              const res = await createCompanyWorkspace(workspaceId, name);
+              setCreated({ name, admins: res.adminEmails });
+              setName("");
+              setAdding(false);
+              await Promise.all([refresh(), refreshSwitcher()]);
+            } catch (err) {
+              setFormError(err instanceof Error ? err.message : "Could not add the workspace");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Field label="Workspace name">
+            <input id="new-ws-name" required className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ireland Sales" />
+          </Field>
+          <div className="mt-3">
             <FormError message={formError} />
-            <div className="flex gap-2">
-              <Button type="submit" variant="primary" disabled={busy || !name.trim()}>
-                {busy ? "Creating…" : "Create workspace"}
-              </Button>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
+          </div>
+        </form>
+      </Modal>
 
       <p className="text-sm text-[var(--muted)]">
         {rows.length} {rows.length === 1 ? "workspace" : "workspaces"} · {totalUsers} {totalUsers === 1 ? "user" : "users"}

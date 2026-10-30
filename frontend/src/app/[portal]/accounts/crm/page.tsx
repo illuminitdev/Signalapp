@@ -167,7 +167,7 @@ function CrmGuide({ workspaceId }: { workspaceId: string }) {
             />
           )}
           {status && !status.configured ? (
-            <p className="mt-4 text-sm text-[var(--red-active)]">No CRM is connected. An admin sets HUBSPOT_ACCESS_TOKEN on the server.</p>
+            <p className="mt-4 text-sm text-[var(--red-active)]">No CRM is connected. A tenant admin can connect one in Settings → Connections &amp; usage.</p>
           ) : null}
         </GuidedCard>
       ) : null}
