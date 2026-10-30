@@ -73,9 +73,12 @@ h3 {
   margin: 0;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* In the base layer so a link's own text colour (e.g. text-white on a red button) wins */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 /* In the base layer so Tailwind utilities (e.g. text-sm) can still size controls */

@@ -30,7 +30,7 @@ const PILOT_START = new Date("2000-01-01T00:00:00Z").toISOString();
 const VIEW_TITLES: Record<Outcomes["view"], { title: string; description: string }> = {
   admin: {
     title: "Workspace report",
-    description: "Everything happening in this workspace: research usage, team activity and outcomes.",
+    description: "Everything happening in this workspace: team activity and outcomes. Research usage is under Settings → Usage.",
   },
   researcher: {
     title: "Your research",
@@ -228,34 +228,8 @@ function OpportunitiesCard({ w }: { w: WorkspaceOutcomes }) {
 /* ---------- Role sections ---------- */
 
 function AdminSection({ a }: { a: AdminReport }) {
-  const used = a.usage.usedMonthly;
-  const quota = a.usage.quotaMonthly;
-  const usagePct = quota ? Math.min(100, (used / quota) * 100) : 0;
   return (
     <>
-      <SectionCard title="Research usage this month" description="Units used against your company's monthly limit.">
-        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-3xl font-semibold tabular-nums">
-            {used}
-            <span className="ml-1.5 text-base font-normal text-[var(--muted)]">/ {quota} units</span>
-          </p>
-          <p className="text-sm text-[var(--muted)]">{Math.max(0, quota - used)} units left</p>
-        </div>
-        <div
-          className="mt-3 h-2.5 overflow-hidden rounded-full bg-[var(--chip-bg)]"
-          role="progressbar"
-          aria-label="Research usage"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(usagePct)}
-        >
-          <div
-            className={`h-full rounded-full ${usagePct >= 90 ? "bg-[var(--red)]" : usagePct >= 70 ? "bg-[var(--badge-amber-fg)]" : "bg-[var(--navy)]"}`}
-            style={{ width: `${Math.max(usagePct, usagePct ? 2 : 0)}%` }}
-          />
-        </div>
-      </SectionCard>
-
       <SectionCard title="Team activity by person" description="What each member of this workspace has done.">
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">

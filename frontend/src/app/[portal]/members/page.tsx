@@ -18,7 +18,7 @@ import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { usePagination } from "@/components/ui/Pagination";
 import { Modal } from "@/components/ui/Modal";
-import { UserPlus } from "lucide-react";
+import { ListFilter, UserPlus } from "lucide-react";
 
 const ROLES = ["tenant_admin", "researcher", "sdr", "sales_reviewer", "partner", "analyst"] as const;
 
@@ -36,7 +36,11 @@ function Members({ workspaceId }: { workspaceId: string }) {
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState("");
-  const { pageItems, pager } = usePagination(rows);
+  // Filter the list by role ("" = everyone)
+  const [roleFilter, setRoleFilter] = useState("");
+  const shown = roleFilter ? rows.filter((m) => m.role === roleFilter) : rows;
+  const { pageItems, pager } = usePagination(shown);
+  const countByRole = (r: string) => rows.filter((m) => m.role === r).length;
 
   const refresh = useCallback(async () => {
     try {
@@ -161,7 +165,38 @@ function Members({ workspaceId }: { workspaceId: string }) {
       </Modal>
 
       <Card>
-        <h2 className="text-[15px]">Active members</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-[15px]">
+            Active members{" "}
+            <span className="text-sm font-normal text-[var(--muted)]">
+              {roleFilter ? `${shown.length} of ${rows.length}` : rows.length}
+            </span>
+          </h2>
+          <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+            <ListFilter size={16} aria-hidden />
+            <span className="sr-only">Filter by role</span>
+            <select
+              className="rounded-[8px] border border-[var(--input-border)] bg-white px-3 py-2 text-sm text-[var(--foreground)]"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="">All roles ({rows.length})</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]} ({countByRole(r)})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {roleFilter && !shown.length ? (
+          <p className="mt-4 rounded-[8px] bg-[var(--chip-bg)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+            No {ROLE_LABELS[roleFilter] ?? roleFilter} members yet.{" "}
+            <button type="button" className="font-medium text-[var(--red-active)] hover:underline" onClick={() => setRoleFilter("")}>
+              Show everyone
+            </button>
+          </p>
+        ) : null}
         <ul className="mt-3 divide-y divide-[var(--line)]">
           {pageItems.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
