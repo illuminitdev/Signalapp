@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CrmChip } from "./CrmChip";
 import { Briefcase, CalendarDays, Boxes, RotateCcw, Users, type LucideIcon } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/auth/capabilities";
 import { formatDate } from "@/lib/utils/dates";
@@ -74,7 +75,12 @@ function CompanyCard({ c, onReset }: { c: PlatformCompany; onReset?: () => void 
         <Stat Icon={Briefcase} label="Accounts" value={c.accounts} />
       </div>
 
-      <div className="mt-4 flex min-h-[26px] flex-wrap gap-1.5">
+      <div className="mt-4 flex items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-[var(--muted)]">CRM</span>
+        <CrmChip crm={c.crm} />
+      </div>
+
+      <div className="mt-3 flex min-h-[26px] flex-wrap gap-1.5">
         {roles.length ? (
           roles.map(([r, n]) => (
             <span

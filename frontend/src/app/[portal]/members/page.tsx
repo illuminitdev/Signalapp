@@ -17,6 +17,8 @@ import { Card } from "@/components/ui/Card";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { usePagination } from "@/components/ui/Pagination";
+import { Modal } from "@/components/ui/Modal";
+import { UserPlus } from "lucide-react";
 
 const ROLES = ["tenant_admin", "researcher", "sdr", "sales_reviewer", "partner", "analyst"] as const;
 
@@ -28,6 +30,7 @@ function Members({ workspaceId }: { workspaceId: string }) {
   const [role, setRole] = useState<string>("researcher");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
@@ -47,15 +50,56 @@ function Members({ workspaceId }: { workspaceId: string }) {
     void refresh();
   }, [refresh]);
 
+  const closeAdd = () => {
+    setAdding(false);
+    setError(null);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Access"
         title="Workspace members"
         description="Access comes only from an explicit membership — belonging to an organization never grants it. Agency users get delegated membership here too. Revoking takes effect on their next request."
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => {
+              setNotice(null);
+              setError(null);
+              setAdding(true);
+            }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <UserPlus size={16} aria-hidden /> Add member
+            </span>
+          </Button>
+        }
       />
-      <Card>
+
+      {notice ? (
+        <p role="status" className="rounded-[10px] bg-[var(--badge-green-bg)] px-4 py-3 text-sm text-[var(--badge-green-fg)]">
+          {notice}
+        </p>
+      ) : null}
+      {!adding ? <FormError message={error} /> : null}
+
+      <Modal
+        open={adding}
+        onClose={closeAdd}
+        title="Add a member"
+        description="They can sign in straight away with the password you set, and change it under Settings → Password."
+        footer={
+          <>
+            <Button onClick={closeAdd}>Cancel</Button>
+            <Button type="submit" form="add-member-form" variant="primary" disabled={busy || !email}>
+              {busy ? "Adding…" : "Grant access"}
+            </Button>
+          </>
+        }
+      >
         <form
+          id="add-member-form"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -71,6 +115,7 @@ function Members({ workspaceId }: { workspaceId: string }) {
               setEmail("");
               setName("");
               setPassword("");
+              setAdding(false);
               await refresh();
             } catch (err) {
               setError(err instanceof Error ? err.message : "Grant failed");
@@ -79,8 +124,7 @@ function Members({ workspaceId }: { workspaceId: string }) {
             }
           }}
         >
-          <h2 className="text-[15px]">Add a member</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Email">
               <input type="email" required className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. sara@yourcompany.com" />
             </Field>
@@ -107,18 +151,14 @@ function Members({ workspaceId }: { workspaceId: string }) {
               </select>
             </Field>
           </div>
-          <p className="mt-2 text-xs text-[var(--muted)]">{ROLE_DESCRIPTIONS[role]}</p>
-          <Button type="submit" variant="primary" className="mt-3" disabled={busy || !email}>
-            Grant access
-          </Button>
-          {notice ? (
-            <p role="status" className="mt-3 rounded-[7px] bg-[var(--chip-bg)] p-3 text-sm">
-              {notice}
-            </p>
-          ) : null}
-          <FormError message={error} />
+          <p className="mt-3 rounded-[8px] bg-[var(--chip-bg)] px-3 py-2 text-xs text-[var(--muted)]">
+            <strong className="text-[var(--foreground)]">{ROLE_LABELS[role]}:</strong> {ROLE_DESCRIPTIONS[role]}
+          </p>
+          <div className="mt-3">
+            <FormError message={error} />
+          </div>
         </form>
-      </Card>
+      </Modal>
 
       <Card>
         <h2 className="text-[15px]">Active members</h2>

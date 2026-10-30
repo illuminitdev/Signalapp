@@ -6,6 +6,7 @@ import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { formatDate } from "@/lib/utils/dates";
 import {
@@ -59,11 +60,16 @@ export default function PlatformWorkspacesPage() {
         title="Workspaces"
         description="Team areas inside each company. A new workspace starts empty: no accounts, evidence or tasks, and its own offer, members and settings."
         actions={
-          !adding ? (
-            <Button variant="primary" onClick={() => setAdding(true)} disabled={!companies.length}>
-              Add workspace
-            </Button>
-          ) : null
+          <Button
+            variant="primary"
+            onClick={() => {
+              setFormError(null);
+              setAdding(true);
+            }}
+            disabled={!companies.length}
+          >
+            Add workspace
+          </Button>
         }
       />
 
@@ -79,77 +85,77 @@ export default function PlatformWorkspacesPage() {
         </div>
       ) : null}
 
-      {adding ? (
-        <Card accent>
-          <form
-            className="space-y-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setFormError(null);
-              setCreated(null);
-              try {
-                const res = await createWorkspace({
-                  tenantId: form.tenantId,
-                  name: form.name,
-                  adminEmail: form.adminEmail || undefined,
-                  adminName: form.adminName || undefined,
-                  adminPassword: form.adminPassword || undefined,
-                });
-                setCreated({ name: form.name, admins: res.adminEmails, existingAccount: res.existingAccount });
-                setForm(EMPTY);
-                setAdding(false);
-                await refresh();
-              } catch (err) {
-                setFormError(err instanceof Error ? err.message : "Could not add the workspace");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <h2 className="text-[15px]">Add a workspace</h2>
-            <p className="text-sm text-[var(--muted)]">
-              Leave the admin email blank to give the company&apos;s current tenant admins access. Enter an email to make someone
-              else the admin; set a password if that email is new to SignalApp.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Company">
-                <select id="ws-company" required className={inputClass} value={form.tenantId} onChange={set("tenantId")}>
-                  <option value="">Choose a company…</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+      <Modal
+        open={adding}
+        onClose={() => setAdding(false)}
+        title="Add a workspace"
+        description="Leave the admin email blank to give the company's current tenant admins access. Enter an email to make someone else the admin; set a password if that email is new to SignalApp."
+        size="lg"
+        footer={
+          <>
+            <Button onClick={() => setAdding(false)}>Cancel</Button>
+            <Button type="submit" form="add-platform-workspace-form" variant="primary" disabled={busy || !form.tenantId || !form.name}>
+              {busy ? "Creating…" : "Create workspace"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="add-platform-workspace-form"
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setFormError(null);
+            setCreated(null);
+            try {
+              const res = await createWorkspace({
+                tenantId: form.tenantId,
+                name: form.name,
+                adminEmail: form.adminEmail || undefined,
+                adminName: form.adminName || undefined,
+                adminPassword: form.adminPassword || undefined,
+              });
+              setCreated({ name: form.name, admins: res.adminEmails, existingAccount: res.existingAccount });
+              setForm(EMPTY);
+              setAdding(false);
+              await refresh();
+            } catch (err) {
+              setFormError(err instanceof Error ? err.message : "Could not add the workspace");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Company">
+              <select id="ws-company" required className={inputClass} value={form.tenantId} onChange={set("tenantId")}>
+                <option value="">Choose a company…</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Workspace name">
+              <input id="ws-name" required className={inputClass} value={form.name} onChange={set("name")} placeholder="e.g. Ireland Sales" />
+            </Field>
+            <Field label="Workspace admin email (optional)">
+              <input id="ws-admin-email" type="email" className={inputClass} value={form.adminEmail} onChange={set("adminEmail")} placeholder="Blank = company's tenant admins" />
+            </Field>
+            <Field label="Admin name (optional)">
+              <input id="ws-admin-name" className={inputClass} value={form.adminName} onChange={set("adminName")} placeholder="e.g. Sean Murphy" />
+            </Field>
+            {form.adminEmail ? (
+              <Field label="Admin password" hint="Needed for a new email (8+ characters). An existing account keeps its own password.">
+                <PasswordInput id="ws-admin-password" minLength={8} autoComplete="new-password" value={form.adminPassword} onChange={set("adminPassword")} placeholder="Set their password" />
               </Field>
-              <Field label="Workspace name">
-                <input id="ws-name" required className={inputClass} value={form.name} onChange={set("name")} placeholder="e.g. Ireland Sales" />
-              </Field>
-              <Field label="Workspace admin email (optional)">
-                <input id="ws-admin-email" type="email" className={inputClass} value={form.adminEmail} onChange={set("adminEmail")} placeholder="Blank = company's tenant admins" />
-              </Field>
-              <Field label="Admin name (optional)">
-                <input id="ws-admin-name" className={inputClass} value={form.adminName} onChange={set("adminName")} placeholder="e.g. Sean Murphy" />
-              </Field>
-              {form.adminEmail ? (
-                <Field label="Admin password" hint="Needed for a new email (8+ characters). An existing account keeps its own password.">
-                  <PasswordInput id="ws-admin-password" minLength={8} autoComplete="new-password" value={form.adminPassword} onChange={set("adminPassword")} placeholder="Set their password" />
-                </Field>
-              ) : null}
-            </div>
-            <FormError message={formError} />
-            <div className="flex gap-2">
-              <Button type="submit" variant="primary" disabled={busy || !form.tenantId || !form.name}>
-                {busy ? "Creating…" : "Create workspace"}
-              </Button>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
+            ) : null}
+          </div>
+          <FormError message={formError} />
+        </form>
+      </Modal>
 
       <Card>
         <label className="block w-full max-w-sm text-xs font-semibold text-[var(--muted)]">

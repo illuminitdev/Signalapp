@@ -257,6 +257,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       }
       const usage = await getUsage(m.tenantId);
       const entitlements = await ensureEntitlements(m.tenantId, workspaceId);
+      const crm = await crmProviderStatus(m.tenantId);
       return {
         research: researchProviderStatus(),
         usage,
@@ -265,11 +266,11 @@ export async function settingsRoutes(app: FastifyInstance) {
           researchKillSwitch: entitlements.researchKillSwitch,
         },
         crm: {
-          ...crmProviderStatus(),
+          ...crm,
           enabled: entitlements.crmEnabled,
-          note: crmProviderStatus().configured
+          note: crm.configured
             ? "Accepted accounts can be sent to the CRM from each account page, with a preview first"
-            : "No CRM connected. Set HUBSPOT_ACCESS_TOKEN in backend/.env to enable CRM sync",
+            : "No CRM connected yet. A tenant admin can connect one below.",
         },
         sending: {
           enabled: false,

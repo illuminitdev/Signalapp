@@ -116,7 +116,8 @@ export const PORTALS: Record<PortalKey, Portal> = {
       settings([
         { href: "/settings/offer", label: "Offer & targeting" },
         { href: "/settings/suppressions", label: "Suppressions" },
-        { href: "/settings/connections", label: "Connections & usage" },
+        { href: "/settings/usage", label: "Usage" },
+        { href: "/settings/crm", label: "Connect to CRM" },
       ]),
     ],
   },
@@ -158,7 +159,7 @@ export const PORTALS: Record<PortalKey, Portal> = {
       },
       { key: "outreach", label: "Outreach", Icon: Send, items: [{ href: "/outreach/drafts", label: "Drafts" }] },
       reports,
-      settings([{ href: "/settings/connections", label: "Connections & usage" }]),
+      settings([{ href: "/settings/usage", label: "Usage" }]),
     ],
   },
 
@@ -199,7 +200,7 @@ export const PORTALS: Record<PortalKey, Portal> = {
         ],
       },
       reports,
-      settings(),
+      settings([{ href: "/settings/crm", label: "Connect to CRM", visible: (can) => can("manage_integrations") }]),
     ],
   },
 

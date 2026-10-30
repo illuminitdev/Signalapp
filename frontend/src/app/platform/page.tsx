@@ -11,9 +11,11 @@ import {
   CircleCheck,
   Gauge,
   Boxes,
+  Plug,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { CrmChip } from "@/components/platform/CrmChip";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -121,11 +123,17 @@ export default function PlatformOverviewPage() {
       />
 
       {/* Headline numbers */}
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <StatTile Icon={Building2} label="Companies" value={data.totals.companies} hint="Customer tenants" />
         <StatTile Icon={Boxes} label="Workspaces" value={data.totals.workspaces} hint="Across all companies" />
         <StatTile Icon={Users} label="Active members" value={data.totals.members} hint="People with access" />
         <StatTile Icon={Briefcase} label="Accounts" value={data.totals.accounts} hint="Tracked target accounts" />
+        <StatTile
+          Icon={Plug}
+          label="CRM connected"
+          value={data.totals.crmConnected}
+          hint={`of ${data.totals.companies} compan${data.totals.companies === 1 ? "y" : "ies"}`}
+        />
       </div>
 
       {/* Research usage */}
@@ -309,6 +317,7 @@ export default function PlatformOverviewPage() {
                       <Briefcase size={13} aria-hidden />
                       <span className="font-semibold text-[var(--foreground)]">{c.accounts}</span>
                     </span>
+                    <CrmChip crm={c.crm} />
                     <span className="w-28" title="Research this month">
                       <span className="block text-right">
                         <span className="font-semibold text-[var(--foreground)]">{c.researchUsedMonthly}</span> /{" "}

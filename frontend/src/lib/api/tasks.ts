@@ -14,6 +14,8 @@ export type Task = {
   timezone: string;
   createdBy: string;
   createdAt: string;
+  /** Last change; for a completed task, when it was completed */
+  updatedAt: string;
 };
 
 export const TASK_TYPE_LABELS: Record<Task["type"], string> = {

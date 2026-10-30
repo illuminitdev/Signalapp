@@ -7,14 +7,13 @@ import {
   deleteMonitor,
   listChangeEvents,
   listMonitors,
-  simulateChangeCheck,
+  runMonitorCheck,
   updateMonitor,
 } from "../../services/monitors.js";
 
 const updateMonitorSchema = z.object({
   cadenceHours: z.number().int().positive().optional(),
   status: z.enum(["active", "paused"]).optional(),
-  isSimulation: z.boolean().optional(),
 });
 
 export async function monitorsRoutes(app: FastifyInstance) {
@@ -72,15 +71,15 @@ export async function monitorsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Simulate change check
+  // Run a live check now (same rules as the scheduled run: budget, kill switch, suppression)
   app.post(
-    "/v1/workspaces/:workspaceId/monitors/:monitorId/simulate",
+    "/v1/workspaces/:workspaceId/monitors/:monitorId/run",
     { preHandler: authenticateRequired },
     async (req) => {
       const { workspaceId, monitorId } = req.params as { workspaceId: string; monitorId: string };
       const m = await loadMembership(req, workspaceId);
       requireCap(m, "discover");
-      const result = await simulateChangeCheck(workspaceId, monitorId);
+      const result = await runMonitorCheck(workspaceId, monitorId);
       return result;
     },
   );

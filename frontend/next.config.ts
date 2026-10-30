@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
       { source: `/${portal}/reports`, destination: "/:portal/reports/outcomes", permanent: false },
 
       // Renamed pages
+      { source: `/${portal}/settings/connections`, destination: "/:portal/settings/usage", permanent: true },
+      { source: "/settings/connections", destination: "/settings/usage", permanent: true },
       { source: "/discover/search", destination: "/discover/assign", permanent: true },
       { source: "/discover/feed", destination: "/overview", permanent: true },
       { source: "/accounts/acceptance", destination: "/accounts/sales-acceptance", permanent: true },

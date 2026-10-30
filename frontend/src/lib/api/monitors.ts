@@ -9,7 +9,6 @@ export type Monitor = {
   recipeJson: string;
   cadenceHours: number;
   status: "active" | "paused";
-  isSimulation: boolean;
   lastSuccessAt: string | null;
   lastAttemptAt: string | null;
   lastRunStatus: string | null;
@@ -46,7 +45,7 @@ export function createMonitorFromPlaybook(workspaceId: string) {
 export function updateMonitor(
   workspaceId: string,
   monitorId: string,
-  patch: { cadenceHours?: number; status?: "active" | "paused"; isSimulation?: boolean },
+  patch: { cadenceHours?: number; status?: "active" | "paused" },
 ) {
   return api<{ monitor: Monitor }>(`/v1/workspaces/${workspaceId}/monitors/${monitorId}`, {
     method: "PATCH",
@@ -60,14 +59,16 @@ export function deleteMonitor(workspaceId: string, monitorId: string) {
   });
 }
 
-export function simulateChangeCheck(workspaceId: string, monitorId: string) {
+/** Run a live check now; it uses research units like the scheduled run. */
+export function runMonitorCheck(workspaceId: string, monitorId: string) {
   return api<{
     monitor: Monitor;
     freshEventsCount: number;
     skippedDuplicates: number;
     skippedSuppressed: number;
     summary: string;
-  }>(`/v1/workspaces/${workspaceId}/monitors/${monitorId}/simulate`, {
+    status: string;
+  }>(`/v1/workspaces/${workspaceId}/monitors/${monitorId}/run`, {
     method: "POST",
     body: "{}",
   });

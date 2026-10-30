@@ -34,6 +34,15 @@ export function rateLimited(message = "Rate limit exceeded") {
   return new AppError(429, message, "rate_limited");
 }
 
+/** The company hasn't connected a CRM (each company connects its own in Settings). */
+export function crmNotConnected() {
+  return new AppError(
+    503,
+    "No CRM is connected. A tenant admin can connect one in Settings → Connections & usage.",
+    "crm_not_connected",
+  );
+}
+
 export function providerNotConfigured(provider = "exa", envVar = "EXA_API_KEY") {
   return new AppError(
     503,

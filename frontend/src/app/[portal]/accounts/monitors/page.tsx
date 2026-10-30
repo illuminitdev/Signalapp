@@ -1,5 +1,6 @@
 "use client";
 
+import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RequireCap } from "@/components/common/RequireCap";
@@ -12,7 +13,7 @@ import {
   createMonitorFromPlaybook,
   updateMonitor,
   deleteMonitor,
-  simulateChangeCheck,
+  runMonitorCheck,
   listChangeEvents,
   type Monitor,
   type ChangeEvent,
@@ -61,7 +62,8 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [simulatingId, setSimulatingId] = useState<string | null>(null);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<{ monitorId: string; summary: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -136,16 +138,20 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
     }
   };
 
-  const handleSimulate = async (monitorId: string) => {
+  const handleCheckNow = async (monitorId: string) => {
     try {
-      setSimulatingId(monitorId);
+      setCheckingId(monitorId);
       setError(null);
-      await simulateChangeCheck(workspaceId, monitorId);
+      const result = await runMonitorCheck(workspaceId, monitorId);
+      setLastResult({
+        monitorId,
+        summary: result.status === "already_running" ? "A check is already running for this monitor. Try again in a minute." : result.summary,
+      });
       await loadData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Simulation failed");
+      setError(e instanceof Error ? e.message : "Check failed");
     } finally {
-      setSimulatingId(null);
+      setCheckingId(null);
     }
   };
 
@@ -156,7 +162,7 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
       <PageHeader
         eyebrow="CONTINUOUS RESEARCH"
         title="Signal monitors"
-        description="Review a saved targeting recipe and demonstrate a change check."
+        description="Saved targeting recipes that re-run live web research on a schedule, within your research quota, and record new changes."
         actions={
           <Button
             variant="primary"
@@ -172,7 +178,7 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
 
       {!monitorsList || monitorsList.length === 0 ? (
         <Card className="flex items-center justify-center py-16 text-center text-sm text-[var(--muted)]">
-          No monitors yet. Add your current playbook to demonstrate recurring research.
+          No monitors yet. Add your current playbook to re-check it on a schedule.
         </Card>
       ) : (
         <div className="space-y-4">
@@ -185,15 +191,9 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                     {getRecipeSubtitle(m.recipeJson)}
                   </p>
                 </div>
-                {m.isSimulation ? (
-                  <span className="rounded bg-[#fef3c7] px-2.5 py-1 text-xs font-medium text-[#92400e]">
-                    Simulation only
-                  </span>
-                ) : (
-                  <span className="rounded bg-[#dcfce7] px-2.5 py-1 text-xs font-medium text-[#166534]">
-                    Live Exa research
-                  </span>
-                )}
+                <span className="rounded bg-[#dcfce7] px-2.5 py-1 text-xs font-medium text-[#166534]">
+                  Live web research
+                </span>
               </div>
 
               <div className="mt-4 flex flex-wrap items-end gap-3 sm:gap-4">
@@ -224,41 +224,14 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                   Active
                 </label>
 
-                <label className="inline-flex cursor-pointer items-center gap-2 pb-1.5 text-sm font-semibold text-[var(--foreground)]">
-                  <input
-                    type="checkbox"
-                    checked={!m.isSimulation}
-                    onChange={async (e) => {
-                      const live = e.target.checked;
-                      try {
-                        await updateMonitor(workspaceId, m.id, { isSimulation: !live });
-                        setMonitorsList((prev) =>
-                          prev
-                            ? prev.map((item) =>
-                                item.id === m.id ? { ...item, isSimulation: !live } : item,
-                              )
-                            : prev,
-                        );
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to toggle live mode");
-                      }
-                    }}
-                    className="h-4 w-4 rounded border-gray-300 accent-[var(--red)]"
-                  />
-                  Live Exa search
-                </label>
-
                 <Button
                   variant="secondary"
-                  onClick={() => handleSimulate(m.id)}
-                  disabled={simulatingId === m.id}
+                  onClick={() => handleCheckNow(m.id)}
+                  disabled={checkingId === m.id}
                   className="font-normal"
+                  title="Runs live research now and uses up to 5 research units"
                 >
-                  {simulatingId === m.id
-                    ? "Checking..."
-                    : m.isSimulation
-                    ? "Simulate change check"
-                    : "Check live changes"}
+                  {checkingId === m.id ? "Checking..." : "Check now"}
                 </Button>
 
                 <Button
@@ -277,6 +250,12 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                     ? `Last checked: ${formatDate(m.lastAttemptAt)}`
                     : "No checks yet"}
                 </span>
+                {m.lastSuccessAt ? (
+                  <>
+                    <span>·</span>
+                    <span>Last successful: {formatDate(m.lastSuccessAt)}</span>
+                  </>
+                ) : null}
                 {m.lastRunStatus && (
                   <>
                     <span>·</span>
@@ -292,6 +271,16 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                       <span className="font-medium text-[var(--red)]">
                         Web provider outage
                       </span>
+                    ) : m.lastRunStatus === "running" ? (
+                      <span className="font-medium text-[var(--foreground)]">Checking now…</span>
+                    ) : m.lastRunStatus === "kill_switch" ? (
+                      <span className="font-medium text-[#b45309]">
+                        Stopped by kill switch
+                      </span>
+                    ) : m.lastRunStatus === "not_configured" ? (
+                      <span className="font-medium text-[#b45309]">
+                        Not set up (research or territory missing)
+                      </span>
                     ) : (
                       <span className="font-medium text-[var(--muted)]">
                         No new signals
@@ -300,6 +289,11 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                   </>
                 )}
               </div>
+              {lastResult?.monitorId === m.id ? (
+                <p role="status" className="mt-2 text-xs text-[var(--foreground)]">
+                  {lastResult.summary}
+                </p>
+              ) : null}
             </Card>
           ))}
         </div>
@@ -310,13 +304,13 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
         <div>
           <h2 className="text-lg font-bold text-[var(--foreground)]">Change history</h2>
           <p className="mt-0.5 text-sm text-[var(--muted)]">
-            Run a simulated check to populate the change feed.
+            New changes found by your monitors, newest first. Each links to its source.
           </p>
         </div>
 
         {changeEventsList.length === 0 ? (
           <div className="rounded-[8px] border border-dashed border-[var(--line)] p-6 text-center text-sm text-[var(--muted)]">
-            No change events recorded yet. Click &quot;Simulate change check&quot; above to populate the change feed.
+            No changes recorded yet. Monitors add changes here after each scheduled check, or press &quot;Check now&quot;.
           </div>
         ) : (
           <div className="space-y-3">
@@ -337,6 +331,21 @@ function MonitorsView({ workspaceId }: { workspaceId: string }) {
                         {renderDetailWithLinks(c.detail)}
                       </p>
                     ) : null}
+                    {c.accountId ? (
+                      <p className="mt-1.5 text-xs text-[var(--muted)]">
+                        Matches one of your accounts and was saved there as cited evidence.{" "}
+                        <Link
+                          href={`/accounts/detail?id=${c.accountId}`}
+                          className="font-semibold text-[var(--red-active)] hover:underline"
+                        >
+                          Open the account →
+                        </Link>
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-[var(--muted)]">
+                        Not one of your accounts yet. Find it in Discover to research it.
+                      </p>
+                    )}
                   </div>
                   <span className="shrink-0 text-xs text-[var(--muted)]">
                     {formatDate(c.discoveredAt)}

@@ -111,7 +111,9 @@ async function loadContext(s: Scope) {
     return suppressed.has(v) || suppressed.has(v.split("@")[1] ?? "");
   };
   const blockers: string[] = [];
-  if (!isCrmConfigured()) blockers.push("No CRM is connected. Set HUBSPOT_ACCESS_TOKEN in backend/.env.");
+  if (!(await isCrmConfigured(s.tenantId))) {
+    blockers.push("No CRM is connected. A tenant admin can connect one in Settings → Connections & usage.");
+  }
   if (!entitlements.crmEnabled) blockers.push("CRM sync is switched off for this workspace.");
   if (account.mergedIntoId) blockers.push("This account was merged into another account.");
   if (account.acceptanceState !== "accepted") blockers.push("Only sales-accepted accounts can be sent to the CRM.");
@@ -162,9 +164,9 @@ export async function previewSync(s: Scope): Promise<SyncPlan> {
     deal: { action: "skip", externalId: null, stage: null, amount: null, currency: null, reason: "No deal recorded on this account" },
     warnings: [],
   };
-  if (!isCrmConfigured()) return plan;
+  if (!(await isCrmConfigured(s.tenantId))) return plan;
 
-  const crm = getCrmProvider();
+  const crm = await getCrmProvider(s.tenantId);
   const mappings = await getMappings(s, crm.name, [account.id, ...people.map((p) => p.id), ...(opp ? [opp.id] : [])]);
 
   const company = await resolve(crm, "company", mappings.get(`account:${account.id}`)?.externalId, () =>
@@ -219,7 +221,7 @@ export async function previewSync(s: Scope): Promise<SyncPlan> {
 export async function requestSync(s: Scope & { actorUserId: string }) {
   const ctx = await loadContext(s);
   if (ctx.blockers.length) throw validationError(ctx.blockers[0]!, { blockers: ctx.blockers });
-  const crm = getCrmProvider();
+  const crm = await getCrmProvider(s.tenantId);
   await upsertMapping(s, crm.name, "account", s.accountId, { syncStatus: "queued", lastError: null, lastAttemptAt: new Date() });
   await writeAudit({
     tenantId: s.tenantId,
@@ -234,7 +236,7 @@ export async function requestSync(s: Scope & { actorUserId: string }) {
 
 /** Run one account sync against the CRM. Never throws: failures are recorded as Failed with a readable reason. */
 export async function runSync(s: Scope & { actorUserId: string }) {
-  const crm = isCrmConfigured() ? getCrmProvider() : null;
+  const crm = (await isCrmConfigured(s.tenantId)) ? await getCrmProvider(s.tenantId).catch(() => null) : null;
   const provider = crm?.name ?? "hubspot";
   const now = new Date();
   try {
@@ -364,7 +366,7 @@ export async function getSyncStatus(s: Scope) {
     db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.accountId, s.accountId), eq(contacts.tenantId, s.tenantId))),
     db.select({ id: opportunities.id }).from(opportunities).where(and(eq(opportunities.accountId, s.accountId), eq(opportunities.tenantId, s.tenantId))).limit(1),
   ]);
-  const crm = isCrmConfigured() ? getCrmProvider() : null;
+  const crm = (await isCrmConfigured(s.tenantId)) ? await getCrmProvider(s.tenantId).catch(() => null) : null;
   const provider = crm?.name ?? "hubspot";
   const mappings = await getMappings(s, provider, [s.accountId, ...people.map((p) => p.id), ...(opp ? [opp.id] : [])]);
   const acc = mappings.get(`account:${s.accountId}`);

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, count, countDistinct, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../../db/client.js";
-import { accounts, memberships, tenants, users, workspaces } from "../../db/schema/index.js";
+import { accounts, crmConnections, memberships, tenants, users, workspaces } from "../../db/schema/index.js";
 import { requirePlatformAdmin } from "../../middleware/authenticate.js";
 import { provisionTenant, provisionWorkspace } from "../../services/tenants.js";
 import { writeAudit } from "../../services/audit.js";
@@ -16,7 +16,7 @@ import { notFound } from "../../utils/errors.js";
 export async function platformRoutes(app: FastifyInstance) {
   app.get("/v1/platform/overview", { preHandler: requirePlatformAdmin }, async () => {
     const db = getDb();
-    const [tenantRows, wsCounts, memberCounts, accountCounts] = await Promise.all([
+    const [tenantRows, wsCounts, memberCounts, accountCounts, crmRows] = await Promise.all([
       db
         .select({
           id: tenants.id,
@@ -34,7 +34,19 @@ export async function platformRoutes(app: FastifyInstance) {
         .where(isNull(memberships.revokedAt))
         .groupBy(memberships.tenantId, memberships.role),
       db.select({ tenantId: accounts.tenantId, n: count() }).from(accounts).groupBy(accounts.tenantId),
+      // Which CRM each company connected (provider and status only; never the credential)
+      db
+        .select({
+          tenantId: crmConnections.tenantId,
+          provider: crmConnections.provider,
+          status: crmConnections.status,
+          accountLabel: crmConnections.externalAccountLabel,
+          connectedAt: crmConnections.createdAt,
+          lastCheckedAt: crmConnections.lastCheckedAt,
+        })
+        .from(crmConnections),
     ]);
+    const crmByTenant = new Map(crmRows.map((r) => [r.tenantId, r]));
 
     const byTenant = (rows: { tenantId: string; n: number }[]) => new Map(rows.map((r) => [r.tenantId, Number(r.n)]));
     const wsMap = byTenant(wsCounts);
@@ -49,6 +61,10 @@ export async function platformRoutes(app: FastifyInstance) {
         members: Object.values(roles).reduce((a, b) => a + b, 0),
         membersByRole: roles,
         accounts: accMap.get(t.id) ?? 0,
+        crm: (() => {
+          const c = crmByTenant.get(t.id);
+          return c ? { provider: c.provider, status: c.status, accountLabel: c.accountLabel, connectedAt: c.connectedAt, lastCheckedAt: c.lastCheckedAt } : null;
+        })(),
       };
     });
 
@@ -58,6 +74,7 @@ export async function platformRoutes(app: FastifyInstance) {
         workspaces: companies.reduce((a, c) => a + c.workspaces, 0),
         members: companies.reduce((a, c) => a + c.members, 0),
         accounts: companies.reduce((a, c) => a + c.accounts, 0),
+        crmConnected: companies.filter((c) => c.crm).length,
       },
       companies,
     };
