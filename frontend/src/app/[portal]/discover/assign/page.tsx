@@ -2,7 +2,7 @@
 
 import { PortalLink as Link } from "@/components/layout/PortalLink";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, CircleCheck, ExternalLink, History, Sparkles, Trash2, X } from "lucide-react";
+import { ChevronDown, CircleCheck, ExternalLink, History, Trash2, X } from "lucide-react";
 import { RequireCap } from "@/components/common/RequireCap";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { GuidedCard } from "@/components/guide/GuidedCard";
@@ -466,9 +466,7 @@ function FindAndAssign({ workspaceId }: { workspaceId: string }) {
 
           <div className="mt-4">
             <Button variant="primary" disabled={busy || brief.trim().length < 5} onClick={() => void runSearch()}>
-              <span className="inline-flex items-center gap-1.5">
-                <Sparkles size={15} aria-hidden /> {busy ? "Starting…" : "Search"}
-              </span>
+              {busy ? "Starting…" : "Search"}
             </Button>
           </div>
 
